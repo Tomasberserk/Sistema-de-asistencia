@@ -6,6 +6,7 @@ import { runHealthTests } from './health.test.js';
 import { runTokenRotationTests } from './token-rotation.test.js';
 import { runPunctualityTests } from './punctuality-hours.test.js';
 import { runGovernanceInvariantTests } from './invariants-governance.test.js';
+import { runDiscoveryFlowTests } from './e2e-discovery.test.js';
 
 async function main() {
   console.log('====================================================');
@@ -20,6 +21,7 @@ async function main() {
     await runTokenRotationTests();
     await runPunctualityTests();
     await runGovernanceInvariantTests();
+    await runDiscoveryFlowTests();
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log('\n====================================================');

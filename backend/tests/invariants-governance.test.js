@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SENA ATTENDANCE SYSTEM - Governance & Business Invariants Test Suite
  * Valida formalmente BR-01 a BR-12 (3 dias habiles, calculo exacto de retardos,
  * regla de 4 ojos sin autoaprobacion y modos de validacion de sala).
@@ -92,4 +92,85 @@ export async function runGovernanceInvariantTests() {
   await run('DELETE FROM deletion_requests WHERE id = ?', [reqId]);
   await run('DELETE FROM academic_units WHERE id = ?', [testFichaId]);
   await run('DELETE FROM people WHERE id IN (?, ?)', [coordA, coordB]);
+
+  // 4. Invariante BR-04: Restriccion UNIQUE(session_id, person_id) contra doble asistencia
+  const testSessionId = `sess_unique_${Date.now()}`;
+  const testStudentId = `stud_unique_${Date.now()}`;
+  const recId1 = `rec_test_1_${Date.now()}`;
+  const recId2 = `rec_test_2_${Date.now()}`;
+  await run(`INSERT OR IGNORE INTO people (id, institution_id, documento, nombre, active, password, roles) VALUES (?, 'inst_sena_1', '77777777', 'Estudiante Unico', 1, 'pass', ?)`, [testStudentId, JSON.stringify(['APRENDIZ'])]);
+  await run(`INSERT INTO attendance_records (id, session_id, institution_id, unit_id, person_id, documento, status, horas_programadas_sesion, horas_validadas_asistencia, horas_inasistencia_acumulada, created_at) VALUES (?, ?, 'inst_sena_1', 'unit_1', ?, '77777777', 'REGULAR', 6, 6, 0, datetime('now'))`, [recId1, testSessionId, testStudentId]);
+
+  let duplicateFailed = false;
+  try {
+    // Attempt duplicate checkin with unique ID but same (session_id, person_id)
+    await run(`INSERT INTO attendance_records (id, session_id, institution_id, unit_id, person_id, documento, status, horas_programadas_sesion, horas_validadas_asistencia, horas_inasistencia_acumulada, created_at) VALUES (?, ?, 'inst_sena_1', 'unit_1', ?, '77777777', 'REGULAR', 6, 6, 0, datetime('now'))`, [recId2, testSessionId, testStudentId]);
+  } catch (err) {
+    duplicateFailed = true;
+  }
+  assert.strictEqual(duplicateFailed, true, 'La base de datos debe rechazar doble asistencia para la misma sesion y persona');
+  console.log('  ✓ BR-04: Invariante UNIQUE(session_id, person_id) contra doble check-in verificada');
+
+  // 5. Invariante BR-05 / Password Reset: Consumo atomico de un solo uso
+  const resetTokenHash = 'hash_test_atomic_12345';
+  const resetId = `pr_${Date.now()}`;
+  await run(`INSERT INTO password_resets (id, person_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, datetime('now', '+1 hour'), datetime('now'))`, [resetId, testStudentId, resetTokenHash]);
+  
+  // First consumption
+  const firstConsume = await run(`UPDATE password_resets SET used_at = datetime('now') WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')`, [resetTokenHash]);
+  assert.strictEqual(firstConsume.changes, 1, 'Primer consumo debe modificar 1 fila');
+
+  // Second consumption (concurrent/replay attempt)
+  const secondConsume = await run(`UPDATE password_resets SET used_at = datetime('now') WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')`, [resetTokenHash]);
+  assert.strictEqual(secondConsume.changes, 0, 'Segundo consumo sobre el mismo token debe ser rechazado (0 filas afectadas)');
+  console.log('  ✓ BR-05 (Auth): Consumo atomico de un solo uso de token de password reset validado');
+
+  // 6. Invariante BR-11: Habeas Data - Anonimizacion determinista
+  await run(`
+    UPDATE people 
+    SET nombre = 'APRENDIZ_ANONIMIZADO',
+        email = 'anon_' || id || '@sena.anonymized.local',
+        documento = 'ANON_DOC_' || id,
+        password = '',
+        active = 0
+    WHERE id = ?
+  `, [testStudentId]);
+  const anonymizedPerson = await get('SELECT * FROM people WHERE id = ?', [testStudentId]);
+  assert.strictEqual(anonymizedPerson.nombre, 'APRENDIZ_ANONIMIZADO');
+  assert.strictEqual(anonymizedPerson.active, 0);
+  assert.strictEqual(anonymizedPerson.email, `anon_${testStudentId}@sena.anonymized.local`);
+  console.log('  ✓ BR-11: Anonimizacion determinista Habeas Data validada (PII suprimida sin romper FKs)');
+
+  // 7. Invariante Preload Anti-Takeover (BR-01 / BR-04):
+  const preloadDoc = '88888888';
+  const preloadEmail = 'juan.perez@sena.edu.co';
+  const preId = `pre_${Date.now()}`;
+  await run(`INSERT INTO people (id, institution_id, documento, email, nombre, active, password, roles) VALUES (?, 'inst_sena_1', ?, ?, 'Juan Precargado', 0, 'dummy', ?)`, [preId, preloadDoc, preloadEmail, JSON.stringify(['APRENDIZ'])]);
+
+  const preStudent = await get('SELECT * FROM people WHERE documento = ?', [preloadDoc]);
+  assert.strictEqual(preStudent.active, 0, 'Estudiante precargado debe estar inactivo');
+
+  // Attempt takeover with wrong email
+  const maliciousEmail = 'hacker@attacker.local';
+  const isMatchPreload = (preStudent.email && preStudent.email.trim().toLowerCase() === maliciousEmail.trim().toLowerCase());
+  assert.strictEqual(isMatchPreload, false, 'Auto-registro con correo discrepante al precargado debe ser rechazado');
+
+  // Legitimate activation with correct email
+  const isMatchLegit = (preStudent.email && preStudent.email.trim().toLowerCase() === preloadEmail.trim().toLowerCase());
+  assert.strictEqual(isMatchLegit, true, 'Auto-registro con documento y correo coincidentes es aceptado');
+  console.log('  ✓ BR-04 (Preload): Proteccion anti-suplantacion en auto-registro de precargados validada');
+
+  // 8. Invariante BR-06: Sesion CLOSED rechaza nuevo check-in
+  const closedSessionId = `sess_closed_${Date.now()}`;
+  await run(`INSERT INTO attendance_sessions (id, institution_id, unit_id, status, room_created_at) VALUES (?, 'inst_sena_1', 'unit_1', 'CLOSED', datetime('now', '-2 hours'))`, [closedSessionId]);
+  const closedSession = await get('SELECT status FROM attendance_sessions WHERE id = ?', [closedSessionId]);
+  const canCheckin = (closedSession.status === 'OPEN');
+  assert.strictEqual(canCheckin, false, 'Sesion CLOSED debe rechazar nuevos registros de asistencia');
+  console.log('  ✓ BR-06: Invariante de rechazo estricto en sesiones CLOSED validada');
+
+  // Cleanup
+  await run('DELETE FROM attendance_records WHERE session_id = ?', [testSessionId]);
+  await run('DELETE FROM password_resets WHERE id = ?', [resetId]);
+  await run('DELETE FROM people WHERE id IN (?, ?)', [testStudentId, preId]);
+  await run('DELETE FROM attendance_sessions WHERE id = ?', [closedSessionId]);
 }

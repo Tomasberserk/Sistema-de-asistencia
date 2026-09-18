@@ -1877,31 +1877,44 @@ export const getCoordEvidences = async (req, res) => {
   }
 };
 
-// Delete student account (Habeas Data compliance)
+// Delete student account (Habeas Data compliance per BR-11)
 export const deleteStudentAccount = async (req, res) => {
   try {
     const personId = req.user.id;
-    const document = req.user.documento;
 
     if (!personId) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'No se pudo identificar al usuario.' } });
     }
 
-    // 1. Delete from enrollments
-    await run('DELETE FROM enrollments WHERE person_id = ?', [personId]);
+    // 1. Mark enrollments inactive
+    await run('UPDATE enrollments SET active = 0 WHERE person_id = ?', [personId]);
 
-    // 2. Anonimize records in attendance_records (remove personal identification but keep record statistics)
+    // 2. Anonymize records in attendance_records (remove personal identification but keep record statistics)
     await run(`
       UPDATE attendance_records 
       SET documento = '0000000000', reject_reason = 'Anonimizado por Habeas Data' 
       WHERE person_id = ?
     `, [personId]);
 
-    // 3. Delete from people
-    await run('DELETE FROM people WHERE id = ?', [personId]);
+    // 3. Anonymize personal data in people (deterministic synthetic identifiers to preserve UNIQUE constraints and audit trail integrity)
+    await run(`
+      UPDATE people 
+      SET nombre = 'APRENDIZ_ANONIMIZADO',
+          email = 'anon_' || id || '@sena.anonymized.local',
+          documento = 'ANON_DOC_' || id,
+          password = '',
+          photo_reference = NULL,
+          active = 0
+      WHERE id = ?
+    `, [personId]);
 
-    res.json({ data: { message: 'Cuenta y datos personales suprimidos correctamente de acuerdo con la Ley 1581.' } });
+    await createAuditLog(personId, 'STUDENT_ACCOUNT_ANONYMIZED', 'people', personId, null, {
+      status: 'ANONYMIZED'
+    }, { ip: req.ip || req.socket.remoteAddress });
+
+    res.json({ data: { message: 'Cuenta y datos personales suprimidos correctamente de acuerdo con la Ley 1581 (Habeas Data).' } });
   } catch (err) {
+    console.error('deleteStudentAccount error:', err);
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
 };
@@ -1974,5 +1987,253 @@ export const resolveBiometricException = async (req, res) => {
   }
 };
 
+// ── FASE 1: PUBLIC FICHAS & STUDENT REGISTRATION ─────────────────────────────
 
+// GET /public/fichas (Active academic units for student self-registration)
+export const getPublicFichas = async (req, res) => {
+  try {
+    const fichas = await query(`
+      SELECT id, code, name, jornada, status 
+      FROM academic_units 
+      WHERE active = 1 AND (status IS NULL OR status = 'ACTIVE')
+      ORDER BY code ASC
+    `);
+    return res.status(200).json({ data: fichas });
+  } catch (err) {
+    console.error('getPublicFichas error:', err);
+    return res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Error al consultar fichas activas.' } });
+  }
+};
 
+// POST /public/student/register (Student self-registration with pre-load anti-takeover)
+export const registerStudent = async (req, res) => {
+  try {
+    const { fichaId, nombre, documento, email, password, termsAccepted } = req.body;
+
+    if (!fichaId || !nombre || !documento || !email || !password) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Todos los campos son obligatorios.' }
+      });
+    }
+
+    if (!termsAccepted) {
+      return res.status(400).json({
+        error: { code: 'INVALID_TERMS', message: 'Debe aceptar la Política de Tratamiento de Datos Personales (Habeas Data).' }
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: { code: 'INVALID_PASSWORD', message: 'La contraseña debe tener al menos 6 caracteres.' }
+      });
+    }
+
+    const cleanDoc = documento.toString().trim().replace(/\D/g, '');
+    const cleanEmail = email.toString().trim().toLowerCase();
+    const cleanName = sanitizeText(nombre, 120);
+
+    if (!cleanDoc) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'El documento no contiene dígitos válidos.' }
+      });
+    }
+
+    // Verify active ficha
+    const ficha = await get(
+      "SELECT * FROM academic_units WHERE id = ? AND active = 1 AND (status IS NULL OR status = 'ACTIVE')",
+      [fichaId]
+    );
+    if (!ficha) {
+      return res.status(400).json({
+        error: { code: 'FICHA_NOT_ACTIVE', message: 'La ficha seleccionada no existe o no se encuentra activa.' }
+      });
+    }
+
+    // Check existing by doc and by email
+    const existingByDoc = await get('SELECT * FROM people WHERE documento = ?', [cleanDoc]);
+    const existingByEmail = await get('SELECT * FROM people WHERE LOWER(email) = LOWER(?)', [cleanEmail]);
+
+    let targetPersonId = null;
+
+    if (existingByDoc) {
+      // Identity Anti-Takeover rule:
+      // If pre-loaded by coordinator, existing email must match cleanEmail
+      if (existingByDoc.email && existingByDoc.email.trim().toLowerCase() !== cleanEmail) {
+        return res.status(403).json({
+          error: {
+            code: 'IDENTITY_VERIFICATION_FAILED',
+            message: 'El documento ya está registrado con otro correo electrónico. Por seguridad, contacte a su coordinador.'
+          }
+        });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Activate pre-loaded student
+      await run(
+        `UPDATE people 
+         SET nombre = ?, email = ?, password = ?, terms_accepted = 1, active = 1, must_change_password = 0 
+         WHERE id = ?`,
+        [cleanName, cleanEmail, hashedPassword, existingByDoc.id]
+      );
+
+      targetPersonId = existingByDoc.id;
+
+      // Link to ficha in enrollments if not already enrolled
+      const existingEnrollment = await get(
+        'SELECT * FROM enrollments WHERE unit_id = ? AND person_id = ?',
+        [ficha.id, existingByDoc.id]
+      );
+      if (!existingEnrollment) {
+        const enrollId = 'enr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        await run(
+          'INSERT INTO enrollments (id, institution_id, unit_id, person_id, active) VALUES (?, ?, ?, ?, 1)',
+          [enrollId, ficha.institution_id, ficha.id, existingByDoc.id]
+        );
+      } else {
+        await run('UPDATE enrollments SET active = 1 WHERE id = ?', [existingEnrollment.id]);
+      }
+
+      await createAuditLog(targetPersonId, 'STUDENT_PRELOAD_ACTIVATION', 'people', targetPersonId, null, {
+        nombre: cleanName,
+        email: cleanEmail,
+        fichaId: ficha.id
+      }, { ip: req.ip || req.socket.remoteAddress });
+
+    } else {
+      // Document is new. Verify email uniqueness
+      if (existingByEmail) {
+        return res.status(400).json({
+          error: {
+            code: 'EMAIL_ALREADY_EXISTS',
+            message: 'El correo electrónico ya está registrado con otro documento de identidad.'
+          }
+        });
+      }
+
+      const newId = 'person_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      const rolesJson = JSON.stringify(['APRENDIZ']);
+
+      await run(
+        `INSERT INTO people (id, institution_id, documento, email, nombre, roles, password, terms_accepted, active, must_change_password)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 0)`,
+        [newId, ficha.institution_id, cleanDoc, cleanEmail, cleanName, rolesJson, hashedPassword]
+      );
+
+      const enrollId = 'enr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      await run(
+        'INSERT INTO enrollments (id, institution_id, unit_id, person_id, active) VALUES (?, ?, ?, ?, 1)',
+        [enrollId, ficha.institution_id, ficha.id, newId]
+      );
+
+      targetPersonId = newId;
+
+      await createAuditLog(targetPersonId, 'STUDENT_SELF_REGISTRATION', 'people', targetPersonId, null, {
+        nombre: cleanName,
+        email: cleanEmail,
+        documento: cleanDoc,
+        fichaId: ficha.id
+      }, { ip: req.ip || req.socket.remoteAddress });
+    }
+
+    // Generate session JWT
+    const tokenPayload = {
+      id: targetPersonId,
+      institutionId: ficha.institution_id,
+      documento: cleanDoc,
+      nombre: cleanName,
+      roles: ['APRENDIZ']
+    };
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'super-secret-key-for-dev-only', { expiresIn: '24h' });
+
+    return res.status(201).json({
+      data: {
+        token,
+        person: {
+          id: targetPersonId,
+          nombre: cleanName,
+          documento: cleanDoc,
+          email: cleanEmail,
+          terms_accepted: 1,
+          roles: ['APRENDIZ']
+        },
+        message: 'Registro de aprendiz completado con éxito.'
+      }
+    });
+  } catch (err) {
+    console.error('registerStudent error:', err);
+    return res.status(500).json({
+      error: { code: 'SERVER_ERROR', message: 'Error interno durante el registro de aprendiz.' }
+    });
+  }
+};
+
+// ── FASE 2: GET STUDENT ACTIVE SESSION ───────────────────────────────────────
+
+// GET /api/student/active-session
+export const getStudentActiveSession = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const enrollment = await get('SELECT unit_id FROM enrollments WHERE person_id = ? AND active = 1', [studentId]);
+    if (!enrollment) {
+      return res.status(200).json({ data: { hasActiveSession: false } });
+    }
+
+    const session = await get(`
+      SELECT s.id, s.unit_id, s.status, s.room_created_at, s.validation_mode, s.qr_token,
+             u.code as unit_code, u.name as unit_name
+      FROM attendance_sessions s
+      JOIN academic_units u ON s.unit_id = u.id
+      WHERE s.unit_id = ? AND s.status = 'OPEN'
+      ORDER BY s.room_created_at DESC LIMIT 1
+    `, [enrollment.unit_id]);
+
+    if (!session) {
+      return res.status(200).json({ data: { hasActiveSession: false } });
+    }
+
+    // Check if apprentice already checked in
+    const checkin = await get('SELECT * FROM attendance_records WHERE session_id = ? AND person_id = ?', [session.id, studentId]);
+
+    return res.status(200).json({
+      data: {
+        hasActiveSession: true,
+        alreadyCheckedIn: !!checkin,
+        checkinRecord: checkin || null,
+        session: {
+          id: session.id,
+          unitId: session.unit_id,
+          unitCode: session.unit_code,
+          unitName: session.unit_name,
+          validationMode: session.validation_mode || 'QR_ONLY',
+          createdAt: session.room_created_at
+        }
+      }
+    });
+  } catch (err) {
+    console.error('getStudentActiveSession error:', err);
+    return res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Error consultando sesión activa.' } });
+  }
+};
+
+// ── AUDIT LOGS CONTROLLER (COORDINADOR) ──────────────────────────────────────
+export const getAuditLogs = async (req, res) => {
+  try {
+    const logs = await query(`
+      SELECT a.id, a.actor_id, a.action, a.entity_type, a.entity_id,
+             a.before_json, a.after_json, a.metadata_json, a.created_at,
+             p.nombre as actor_name, p.documento as actor_doc
+      FROM audit_logs a
+      LEFT JOIN people p ON a.actor_id = p.id
+      ORDER BY a.created_at DESC
+      LIMIT 100
+    `);
+    res.json({ data: logs });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+};

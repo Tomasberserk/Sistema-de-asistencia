@@ -126,6 +126,90 @@ const fichaActive = document.getElementById('fichaActive');
 const searchStudentInput = document.getElementById('searchStudentInput');
 const btnBulkMarkPresent = document.getElementById('btnBulkMarkPresent');
 
+// Portal & Navigation Elements
+const portalScreen = document.getElementById('portalScreen');
+const scannerScreen = document.getElementById('scannerScreen');
+const btnOpenStudentLogin = document.getElementById('btnOpenStudentLogin');
+const btnOpenStaffLogin = document.getElementById('btnOpenStaffLogin');
+const btnOpenStudentRegister = document.getElementById('btnOpenStudentRegister');
+const btnBackToPortalFromStaff = document.getElementById('btnBackToPortalFromStaff');
+const btnBackToPortalFromStudent = document.getElementById('btnBackToPortalFromStudent');
+const btnSwitchToRegister = document.getElementById('btnSwitchToRegister');
+const btnForgotStaff = document.getElementById('btnForgotStaff');
+const btnForgotStudent = document.getElementById('btnForgotStudent');
+
+// Student Auth Elements
+const studentLoginScreen = document.getElementById('studentLoginScreen');
+const studentLoginForm = document.getElementById('studentLoginForm');
+const studentLoginDoc = document.getElementById('studentLoginDoc');
+const studentLoginPassword = document.getElementById('studentLoginPassword');
+const studentLoginFeedback = document.getElementById('studentLoginFeedback');
+const btnToggleStudentPassword = document.getElementById('btnToggleStudentPassword');
+
+// Student Register Modal Elements
+const studentRegisterModal = document.getElementById('studentRegisterModal');
+const btnCloseRegisterModal = document.getElementById('btnCloseRegisterModal');
+const btnCancelRegister = document.getElementById('btnCancelRegister');
+const studentRegisterForm = document.getElementById('studentRegisterForm');
+const regFichaSelect = document.getElementById('regFichaSelect');
+const regNombre = document.getElementById('regNombre');
+const regDoc = document.getElementById('regDoc');
+const regEmail = document.getElementById('regEmail');
+const regPass = document.getElementById('regPass');
+const regPassConfirm = document.getElementById('regPassConfirm');
+const regTerms = document.getElementById('regTerms');
+const registerFeedback = document.getElementById('registerFeedback');
+
+// Forgot Password Elements
+const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+const btnCloseForgotModal = document.getElementById('btnCloseForgotModal');
+const forgotFeedback = document.getElementById('forgotFeedback');
+const forgotRequestForm = document.getElementById('forgotRequestForm');
+const forgotIdentifier = document.getElementById('forgotIdentifier');
+const forgotResetSection = document.getElementById('forgotResetSection');
+const resetPasswordForm = document.getElementById('resetPasswordForm');
+const resetTokenInput = document.getElementById('resetTokenInput');
+const resetNewPassInput = document.getElementById('resetNewPassInput');
+
+// Student Dashboard Elements (4 Tabs)
+const studentWelcomeName = document.getElementById('studentWelcomeName');
+const btnStudentTabActive = document.getElementById('btnStudentTabActive');
+const btnStudentTabHistory = document.getElementById('btnStudentTabHistory');
+const btnStudentTabExcuses = document.getElementById('btnStudentTabExcuses');
+const btnStudentTabSettings = document.getElementById('btnStudentTabSettings');
+const studentTabContentActive = document.getElementById('studentTabContentActive');
+const studentTabContentHistory = document.getElementById('studentTabContentHistory');
+const studentTabContentExcuses = document.getElementById('studentTabContentExcuses');
+const studentTabContentSettings = document.getElementById('studentTabContentSettings');
+const studentActiveSessionContent = document.getElementById('studentActiveSessionContent');
+const btnRefreshActiveSession = document.getElementById('btnRefreshActiveSession');
+const studentExcusesGridBody = document.getElementById('studentExcusesGridBody');
+const btnOpenNewExcuseModal = document.getElementById('btnOpenNewExcuseModal');
+const studentChangePassForm = document.getElementById('studentChangePassForm');
+const currentPassStudent = document.getElementById('currentPassStudent');
+const newPassStudent = document.getElementById('newPassStudent');
+const feedbackChangePass = document.getElementById('feedbackChangePass');
+const btnDeleteStudentAccount = document.getElementById('btnDeleteStudentAccount');
+
+// Coordinator Tabs Elements (Dual + Audit)
+const btnCoordTabDual = document.getElementById('btnCoordTabDual');
+const btnCoordTabAudit = document.getElementById('btnCoordTabAudit');
+const tabContentDual = document.getElementById('tabContentDual');
+const tabContentAudit = document.getElementById('tabContentAudit');
+const coordDualGridBody = document.getElementById('coordDualGridBody');
+const coordAuditGridBody = document.getElementById('coordAuditGridBody');
+const btnRefreshDual = document.getElementById('btnRefreshDual');
+const btnRefreshAudit = document.getElementById('btnRefreshAudit');
+
+// Request Ficha Deletion Modal (4 Eyes)
+const requestFichaDeletionModal = document.getElementById('requestFichaDeletionModal');
+const btnCloseDeletionModal = document.getElementById('btnCloseDeletionModal');
+const btnCancelFichaDeletion = document.getElementById('btnCancelFichaDeletion');
+const formRequestFichaDeletion = document.getElementById('formRequestFichaDeletion');
+const deleteFichaId = document.getElementById('deleteFichaId');
+const deleteFichaLabel = document.getElementById('deleteFichaLabel');
+const deleteFichaReason = document.getElementById('deleteFichaReason');
+
 // Initialize API configuration
 // Initialize API configuration
 let rawApiUrl = localStorage.getItem('apiUrl') || window.location.origin;
@@ -166,90 +250,207 @@ let html5QrCode = null;
 document.addEventListener('DOMContentLoaded', () => {
   checkApiHealth();
   
-  // Bind Portal Buttons
-  document.getElementById('btnGoToScanner').addEventListener('click', startQrScanner);
-  document.getElementById('btnGoToLogin').addEventListener('click', showLogin);
-  document.getElementById('btnCancelScanner').addEventListener('click', showPortal);
+  // Bind Portal Navigation Buttons
+  const btnGoToScanner = document.getElementById('btnGoToScanner');
+  if (btnGoToScanner) btnGoToScanner.addEventListener('click', startQrScanner);
+
+  const btnCancelScanner = document.getElementById('btnCancelScanner');
+  if (btnCancelScanner) btnCancelScanner.addEventListener('click', showPortal);
+
+  if (btnOpenStudentLogin) btnOpenStudentLogin.addEventListener('click', showStudentLogin);
+  if (btnOpenStaffLogin) btnOpenStaffLogin.addEventListener('click', showLogin);
+  if (btnOpenStudentRegister) btnOpenStudentRegister.addEventListener('click', openStudentRegisterModal);
+  if (btnBackToPortalFromStaff) btnBackToPortalFromStaff.addEventListener('click', showPortal);
+  if (btnBackToPortalFromStudent) btnBackToPortalFromStudent.addEventListener('click', showPortal);
+  if (btnSwitchToRegister) btnSwitchToRegister.addEventListener('click', openStudentRegisterModal);
+
+  // Forgot Password Openers & Closers
+  if (btnForgotStaff) {
+    btnForgotStaff.addEventListener('click', () => {
+      forgotPasswordModal?.classList.remove('hidden');
+      forgotFeedback?.classList.add('hidden');
+      forgotResetSection?.classList.add('hidden');
+      forgotRequestForm?.reset();
+    });
+  }
+  if (btnForgotStudent) {
+    btnForgotStudent.addEventListener('click', () => {
+      forgotPasswordModal?.classList.remove('hidden');
+      forgotFeedback?.classList.add('hidden');
+      forgotResetSection?.classList.add('hidden');
+      forgotRequestForm?.reset();
+    });
+  }
+  if (btnCloseForgotModal) btnCloseForgotModal.addEventListener('click', () => forgotPasswordModal?.classList.add('hidden'));
+
+  // Student Register Modal Closers
+  if (btnCloseRegisterModal) btnCloseRegisterModal.addEventListener('click', () => studentRegisterModal?.classList.add('hidden'));
+  if (btnCancelRegister) btnCancelRegister.addEventListener('click', () => studentRegisterModal?.classList.add('hidden'));
+
+  // Deletion Modal Closers
+  if (btnCloseDeletionModal) btnCloseDeletionModal.addEventListener('click', () => requestFichaDeletionModal?.classList.add('hidden'));
+  if (btnCancelFichaDeletion) btnCancelFichaDeletion.addEventListener('click', () => requestFichaDeletionModal?.classList.add('hidden'));
 
   // Manual code from scanner screen
-  document.getElementById('btnScannerManualGo').addEventListener('click', () => {
-    const code = document.getElementById('scannerManualCode').value.trim().toUpperCase();
-    if (code.length < 6) {
-      const fb = document.getElementById('scannerFeedback');
-      fb.textContent = 'Ingresa el código completo de 6 caracteres.';
-      fb.className = 'p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20';
-      fb.classList.remove('hidden');
-      return;
-    }
-    stopQrScanner();
-    window.location.href = `/attendance/${code}`;
-  });
-  document.getElementById('scannerManualCode').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('btnScannerManualGo').click();
-  });
+  const btnScannerManualGo = document.getElementById('btnScannerManualGo');
+  if (btnScannerManualGo) {
+    btnScannerManualGo.addEventListener('click', () => {
+      const code = document.getElementById('scannerManualCode').value.trim().toUpperCase();
+      if (code.length < 6) {
+        const fb = document.getElementById('scannerFeedback');
+        fb.textContent = 'Ingresa el código completo de 6 caracteres.';
+        fb.className = 'p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20';
+        fb.classList.remove('hidden');
+        return;
+      }
+      stopQrScanner();
+      window.location.href = `/attendance/${code}`;
+    });
+  }
+
+  const scannerManualCode = document.getElementById('scannerManualCode');
+  if (scannerManualCode) {
+    scannerManualCode.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnScannerManualGo?.click();
+    });
+  }
 
   // Coordinator Tab bindings
-  btnCoordTabInstructors.addEventListener('click', () => {
-    btnCoordTabInstructors.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-[#39A900] text-white transition-all";
-    btnCoordTabFichas.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    btnCoordTabEvidences.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    tabContentInstructors.classList.remove('hidden');
-    tabContentFichas.classList.add('hidden');
-    tabContentEvidences.classList.add('hidden');
-    fetchCoordInstructors();
-  });
+  if (btnCoordTabInstructors) {
+    btnCoordTabInstructors.addEventListener('click', () => {
+      switchCoordTab('instructors');
+      fetchCoordInstructors();
+    });
+  }
+  if (btnCoordTabFichas) {
+    btnCoordTabFichas.addEventListener('click', () => {
+      switchCoordTab('fichas');
+      fetchCoordFichas();
+    });
+  }
+  if (btnCoordTabEvidences) {
+    btnCoordTabEvidences.addEventListener('click', () => {
+      switchCoordTab('evidences');
+      fetchCoordEvidences();
+    });
+  }
+  if (btnCoordTabDual) {
+    btnCoordTabDual.addEventListener('click', () => {
+      switchCoordTab('dual');
+      fetchCoordDualApprovals();
+    });
+  }
+  if (btnCoordTabAudit) {
+    btnCoordTabAudit.addEventListener('click', () => {
+      switchCoordTab('audit');
+      fetchCoordAuditLogs();
+    });
+  }
+  if (btnRefreshDual) btnRefreshDual.addEventListener('click', fetchCoordDualApprovals);
+  if (btnRefreshAudit) btnRefreshAudit.addEventListener('click', fetchCoordAuditLogs);
 
-  btnCoordTabFichas.addEventListener('click', () => {
-    btnCoordTabFichas.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-[#39A900] text-white transition-all";
-    btnCoordTabInstructors.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    btnCoordTabEvidences.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    tabContentFichas.classList.remove('hidden');
-    tabContentInstructors.classList.add('hidden');
-    tabContentEvidences.classList.add('hidden');
-    fetchCoordFichas();
-  });
-
-  btnCoordTabEvidences.addEventListener('click', () => {
-    btnCoordTabEvidences.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-[#39A900] text-white transition-all";
-    btnCoordTabInstructors.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    btnCoordTabFichas.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    tabContentEvidences.classList.remove('hidden');
-    tabContentInstructors.classList.add('hidden');
-    tabContentFichas.classList.add('hidden');
-    fetchCoordEvidences();
-  });
+  // Student Tab bindings
+  if (btnStudentTabActive) {
+    btnStudentTabActive.addEventListener('click', () => {
+      switchStudentTab('active');
+      loadStudentActiveSession();
+    });
+  }
+  if (btnStudentTabHistory) {
+    btnStudentTabHistory.addEventListener('click', () => {
+      switchStudentTab('history');
+      fetchStudentHistory();
+    });
+  }
+  if (btnStudentTabExcuses) {
+    btnStudentTabExcuses.addEventListener('click', () => {
+      switchStudentTab('excuses');
+      fetchStudentHistory();
+    });
+  }
+  if (btnStudentTabSettings) {
+    btnStudentTabSettings.addEventListener('click', () => {
+      switchStudentTab('settings');
+    });
+  }
+  if (btnRefreshActiveSession) btnRefreshActiveSession.addEventListener('click', loadStudentActiveSession);
+  if (btnOpenNewExcuseModal) {
+    btnOpenNewExcuseModal.addEventListener('click', () => {
+      excuseSessionId.value = '';
+      excuseText.value = '';
+      excuseFile.value = '';
+      excuseModal?.classList.remove('hidden');
+    });
+  }
+  if (btnDeleteStudentAccount) btnDeleteStudentAccount.addEventListener('click', handleDeleteStudentAccount);
 
   // Coordinator Modal openers
-  btnNewInstructor.addEventListener('click', () => {
-    instructorModalTitle.textContent = "Registrar Nuevo Instructor";
-    instructorEditId.value = "";
-    instNombre.value = "";
-    instDocumento.value = "";
-    instDocumento.disabled = false;
-    instPassword.value = "";
-    instPassword.required = true;
-    instActiveWrapper.classList.add('hidden');
-    instructorModal.classList.remove('hidden');
-  });
+  if (btnNewInstructor) {
+    btnNewInstructor.addEventListener('click', () => {
+      instructorModalTitle.textContent = "Registrar Nuevo Instructor";
+      instructorEditId.value = "";
+      instNombre.value = "";
+      instDocumento.value = "";
+      instDocumento.disabled = false;
+      instPassword.value = "";
+      instPassword.required = true;
+      instActiveWrapper.classList.add('hidden');
+      instructorModal.classList.remove('hidden');
+    });
+  }
 
-  btnNewFicha.addEventListener('click', () => {
-    fichaModalTitle.textContent = "Registrar Nueva Ficha";
-    fichaEditId.value = "";
-    fichaCode.value = "";
-    fichaCode.disabled = false;
-    fichaName.value = "";
-    fichaActiveWrapper.classList.add('hidden');
-    fichaModal.classList.remove('hidden');
-  });
+  if (btnNewFicha) {
+    btnNewFicha.addEventListener('click', () => {
+      fichaModalTitle.textContent = "Registrar Nueva Ficha";
+      fichaEditId.value = "";
+      fichaCode.value = "";
+      fichaCode.disabled = false;
+      fichaName.value = "";
+      fichaActiveWrapper.classList.add('hidden');
+      fichaModal.classList.remove('hidden');
+    });
+  }
 
-  btnCancelInstructor.addEventListener('click', () => instructorModal.classList.add('hidden'));
-  btnCancelFicha.addEventListener('click', () => fichaModal.classList.add('hidden'));
+  if (btnCancelInstructor) btnCancelInstructor.addEventListener('click', () => instructorModal?.classList.add('hidden'));
+  if (btnCancelFicha) btnCancelFicha.addEventListener('click', () => fichaModal?.classList.add('hidden'));
 
   // Coordinator form submits
-  instructorForm.addEventListener('submit', handleInstructorSubmit);
-  fichaForm.addEventListener('submit', handleFichaSubmit);
+  if (instructorForm) instructorForm.addEventListener('submit', handleInstructorSubmit);
+  if (fichaForm) fichaForm.addEventListener('submit', handleFichaSubmit);
 
-  // Toggle Login Password Visibility
+  // Request Ficha Deletion Form Submit (4 Eyes)
+  if (formRequestFichaDeletion) {
+    formRequestFichaDeletion.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = deleteFichaId.value;
+      const reason = deleteFichaReason.value.trim();
+      if (!id || !reason) return;
+
+      try {
+        const res = await fetch(`${state.apiUrl}/api/coord/fichas/${id}/request-deletion`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.token}`
+          },
+          body: JSON.stringify({ reason })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          alert(result.data?.message || 'Solicitud de baja radicada exitosamente.');
+          requestFichaDeletionModal?.classList.add('hidden');
+          fetchCoordFichas();
+          fetchCoordDualApprovals();
+        } else {
+          alert(`Error: ${result.error?.message || 'No se pudo radicar la solicitud.'}`);
+        }
+      } catch (err) {
+        alert('Error de conexión al solicitar la baja.');
+      }
+    });
+  }
+
+  // Toggle Staff Login Password Visibility
   const btnToggleLoginPassword = document.getElementById('btnToggleLoginPassword');
   if (btnToggleLoginPassword) {
     btnToggleLoginPassword.addEventListener('click', () => {
@@ -264,6 +465,204 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Toggle Student Password Visibility
+  if (btnToggleStudentPassword) {
+    btnToggleStudentPassword.addEventListener('click', () => {
+      const isPass = studentLoginPassword.getAttribute('type') === 'password';
+      studentLoginPassword.setAttribute('type', isPass ? 'text' : 'password');
+    });
+  }
+
+  // Student Change Password Form Submit
+  if (studentChangePassForm) {
+    studentChangePassForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      feedbackChangePass?.classList.add('hidden');
+      const currentPassword = currentPassStudent.value;
+      const newPassword = newPassStudent.value;
+
+      try {
+        const res = await fetch(`${state.apiUrl}/api/auth/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.token}`
+          },
+          body: JSON.stringify({ currentPassword, newPassword })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          feedbackChangePass.textContent = 'Contraseña actualizada con éxito.';
+          feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20';
+          feedbackChangePass.classList.remove('hidden');
+          studentChangePassForm.reset();
+        } else {
+          feedbackChangePass.textContent = result.error?.message || 'Error al cambiar contraseña.';
+          feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+          feedbackChangePass.classList.remove('hidden');
+        }
+      } catch (err) {
+        feedbackChangePass.textContent = 'Error de conexión.';
+        feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        feedbackChangePass.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Student Login Form Submit
+  if (studentLoginForm) {
+    studentLoginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      studentLoginFeedback?.classList.add('hidden');
+      const doc = studentLoginDoc.value.trim();
+      const pass = studentLoginPassword.value.trim();
+
+      try {
+        const res = await fetch(`${state.apiUrl}/public/student/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documento: doc, password: pass })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          state.token = result.data.token;
+          state.person = result.data.person;
+          localStorage.setItem('token', state.token);
+          localStorage.setItem('person', JSON.stringify(state.person));
+          showDashboard();
+        } else {
+          studentLoginFeedback.textContent = result.error?.message || 'Error al iniciar sesión.';
+          studentLoginFeedback.classList.remove('hidden');
+        }
+      } catch (err) {
+        studentLoginFeedback.textContent = 'Error de conexión con el servidor.';
+        studentLoginFeedback.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Student Self-Registration Form Submit
+  if (studentRegisterForm) {
+    studentRegisterForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      registerFeedback?.classList.add('hidden');
+
+      if (regPass.value !== regPassConfirm.value) {
+        registerFeedback.textContent = 'Las contraseñas no coinciden.';
+        registerFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        registerFeedback.classList.remove('hidden');
+        return;
+      }
+
+      if (!regTerms.checked) {
+        registerFeedback.textContent = 'Debe aceptar la Política de Tratamiento de Datos (Habeas Data).';
+        registerFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        registerFeedback.classList.remove('hidden');
+        return;
+      }
+
+      const payload = {
+        fichaId: regFichaSelect.value,
+        nombre: regNombre.value.trim(),
+        documento: regDoc.value.trim(),
+        email: regEmail.value.trim(),
+        password: regPass.value.trim(),
+        termsAccepted: true
+      };
+
+      try {
+        const res = await fetch(`${state.apiUrl}/public/student/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (res.ok) {
+          state.token = result.data.token;
+          state.person = result.data.person;
+          localStorage.setItem('token', state.token);
+          localStorage.setItem('person', JSON.stringify(state.person));
+          studentRegisterModal?.classList.add('hidden');
+          showDashboard();
+        } else {
+          registerFeedback.textContent = result.error?.message || 'Error durante el registro.';
+          registerFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+          registerFeedback.classList.remove('hidden');
+        }
+      } catch (err) {
+        registerFeedback.textContent = 'Error de conexión con el servidor.';
+        registerFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        registerFeedback.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Forgot Password Step 1 Form Submit
+  if (forgotRequestForm) {
+    forgotRequestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      forgotFeedback?.classList.add('hidden');
+      const identifier = forgotIdentifier.value.trim();
+
+      try {
+        const res = await fetch(`${state.apiUrl}/public/auth/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documento: identifier })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          forgotFeedback.textContent = result.data?.message || 'Código generado correctamente.';
+          forgotFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-blue-500/10 text-blue-400 border border-blue-500/20';
+          forgotFeedback.classList.remove('hidden');
+          forgotResetSection?.classList.remove('hidden');
+          if (result.data?.resetToken && resetTokenInput) {
+            resetTokenInput.value = result.data.resetToken;
+          }
+        } else {
+          forgotFeedback.textContent = result.error?.message || 'Error al procesar solicitud.';
+          forgotFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+          forgotFeedback.classList.remove('hidden');
+        }
+      } catch (err) {
+        forgotFeedback.textContent = 'Error de conexión con el servidor.';
+        forgotFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        forgotFeedback.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Forgot Password Step 2 (Reset Password) Form Submit
+  if (resetPasswordForm) {
+    resetPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const token = resetTokenInput.value.trim();
+      const newPassword = resetNewPassInput.value.trim();
+
+      try {
+        const res = await fetch(`${state.apiUrl}/public/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, newPassword })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          alert(result.data?.message || 'Contraseña restablecida exitosamente. Ahora puedes iniciar sesión.');
+          forgotPasswordModal?.classList.add('hidden');
+        } else {
+          forgotFeedback.textContent = result.error?.message || 'Error al restablecer contraseña.';
+          forgotFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+          forgotFeedback.classList.remove('hidden');
+        }
+      } catch (err) {
+        forgotFeedback.textContent = 'Error de conexión con el servidor.';
+        forgotFeedback.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        forgotFeedback.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Check login state
   if (state.token && state.person) {
     showDashboard();
   } else {
@@ -271,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Authentication handlers
+// Staff Authentication handler
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   loginFeedback.classList.add('hidden');
@@ -329,116 +728,282 @@ function handleAuthError(res) {
 }
 
 function showPortal() {
-  document.getElementById('portalScreen').classList.remove('hidden');
-  document.getElementById('scannerScreen').classList.add('hidden');
-  loginScreen.classList.add('hidden');
-  dashboardScreen.classList.add('hidden');
-  studentDashboardScreen.classList.add('hidden');
-  coordDashboardScreen.classList.add('hidden');
-  userInfo.classList.add('hidden');
+  portalScreen?.classList.remove('hidden');
+  scannerScreen?.classList.add('hidden');
+  loginScreen?.classList.add('hidden');
+  studentLoginScreen?.classList.add('hidden');
+  dashboardScreen?.classList.add('hidden');
+  studentDashboardScreen?.classList.add('hidden');
+  coordDashboardScreen?.classList.add('hidden');
+  userInfo?.classList.add('hidden');
   stopQrScanner();
 }
 
-function startQrScanner() {
-  document.getElementById('portalScreen').classList.add('hidden');
-  document.getElementById('scannerScreen').classList.remove('hidden');
-  const feedback = document.getElementById('scannerFeedback');
-  feedback.classList.add('hidden');
-
-  html5QrCode = new Html5Qrcode("reader");
-  const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-  html5QrCode.start(
-    { facingMode: "environment" }, 
-    config,
-    (decodedText) => {
-      stopQrScanner();
-      try {
-        const url = new URL(decodedText);
-        const pathParts = url.pathname.split('/');
-        const token = pathParts[pathParts.length - 1];
-        if (token && (url.pathname.includes('/attendance/') || url.pathname.includes('/attendance'))) {
-          window.location.href = `/attendance/${token}`;
-        } else {
-          feedback.textContent = "QR escaneado no es un código de asistencia válido.";
-          feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
-          feedback.classList.remove('hidden');
-        }
-      } catch (err) {
-        if (decodedText.length > 5) {
-          window.location.href = `/attendance/${decodedText}`;
-        } else {
-          feedback.textContent = "Código QR inválido.";
-          feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
-          feedback.classList.remove('hidden');
-        }
-      }
-    },
-    (errorMessage) => {}
-  ).catch(err => {
-    feedback.textContent = "Error al acceder a la cámara: " + err;
-    feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
-    feedback.classList.remove('hidden');
-  });
-}
-
-function stopQrScanner() {
-  if (html5QrCode && html5QrCode.isScanning) {
-    html5QrCode.stop().then(() => {
-      html5QrCode = null;
-    }).catch(err => console.error("Error stopping scanner", err));
-  }
-}
-
 function showLogin() {
-  document.getElementById('portalScreen').classList.add('hidden');
-  document.getElementById('scannerScreen').classList.add('hidden');
-  loginScreen.classList.remove('hidden');
-  dashboardScreen.classList.add('hidden');
-  studentDashboardScreen.classList.add('hidden');
-  coordDashboardScreen.classList.add('hidden');
-  userInfo.classList.add('hidden');
+  portalScreen?.classList.add('hidden');
+  scannerScreen?.classList.add('hidden');
+  loginScreen?.classList.remove('hidden');
+  studentLoginScreen?.classList.add('hidden');
+  dashboardScreen?.classList.add('hidden');
+  studentDashboardScreen?.classList.add('hidden');
+  coordDashboardScreen?.classList.add('hidden');
+  userInfo?.classList.add('hidden');
+  stopQrScanner();
+}
+
+function showStudentLogin() {
+  portalScreen?.classList.add('hidden');
+  scannerScreen?.classList.add('hidden');
+  loginScreen?.classList.add('hidden');
+  studentLoginScreen?.classList.remove('hidden');
+  dashboardScreen?.classList.add('hidden');
+  studentDashboardScreen?.classList.add('hidden');
+  coordDashboardScreen?.classList.add('hidden');
+  userInfo?.classList.add('hidden');
   stopQrScanner();
 }
 
 function showDashboard() {
-  document.getElementById('portalScreen').classList.add('hidden');
-  document.getElementById('scannerScreen').classList.add('hidden');
-  loginScreen.classList.add('hidden');
-  userInfo.classList.remove('hidden');
-  userName.textContent = state.person.nombre;
+  portalScreen?.classList.add('hidden');
+  scannerScreen?.classList.add('hidden');
+  loginScreen?.classList.add('hidden');
+  studentLoginScreen?.classList.add('hidden');
+  userInfo?.classList.remove('hidden');
+  if (userName) userName.textContent = state.person?.nombre || '';
   stopQrScanner();
 
-  const roles = state.person.roles || [];
+  const roles = state.person?.roles || [];
   const isCoord = roles.includes('COORDINADOR');
   const isInstructor = roles.includes('INSTRUCTOR');
 
   if (isCoord) {
-    coordDashboardScreen.classList.remove('hidden');
-    dashboardScreen.classList.add('hidden');
-    studentDashboardScreen.classList.add('hidden');
+    coordDashboardScreen?.classList.remove('hidden');
+    dashboardScreen?.classList.add('hidden');
+    studentDashboardScreen?.classList.add('hidden');
     
-    // Set active tab to instructors visually
-    btnCoordTabInstructors.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-[#39A900] text-white transition-all";
-    btnCoordTabFichas.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
-    tabContentInstructors.classList.remove('hidden');
-    tabContentFichas.classList.add('hidden');
-
+    switchCoordTab('instructors');
     fetchCoordInstructors();
   } else if (isInstructor) {
-    coordDashboardScreen.classList.add('hidden');
-    dashboardScreen.classList.remove('hidden');
-    studentDashboardScreen.classList.add('hidden');
+    coordDashboardScreen?.classList.add('hidden');
+    dashboardScreen?.classList.remove('hidden');
+    studentDashboardScreen?.classList.add('hidden');
     loadFichas();
     checkForActiveSession();
     fetchInstructorExcuses();
   } else {
-    coordDashboardScreen.classList.add('hidden');
-    dashboardScreen.classList.add('hidden');
-    studentDashboardScreen.classList.remove('hidden');
+    coordDashboardScreen?.classList.add('hidden');
+    dashboardScreen?.classList.add('hidden');
+    studentDashboardScreen?.classList.remove('hidden');
+    if (studentWelcomeName) {
+      studentWelcomeName.textContent = `Bienvenido(a), ${state.person?.nombre || 'Aprendiz'} (${state.person?.documento || ''})`;
+    }
+    switchStudentTab('active');
+    loadStudentActiveSession();
     fetchStudentHistory();
   }
 }
+
+// Student Tab Switcher
+function switchStudentTab(tab) {
+  const tabs = {
+    active: { btn: btnStudentTabActive, content: studentTabContentActive },
+    history: { btn: btnStudentTabHistory, content: studentTabContentHistory },
+    excuses: { btn: btnStudentTabExcuses, content: studentTabContentExcuses },
+    settings: { btn: btnStudentTabSettings, content: studentTabContentSettings }
+  };
+
+  Object.entries(tabs).forEach(([name, t]) => {
+    if (t.btn && t.content) {
+      if (name === tab) {
+        t.btn.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-[#39A900] text-white transition-all whitespace-nowrap";
+        t.content.classList.remove('hidden');
+      } else {
+        t.btn.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all whitespace-nowrap";
+        t.content.classList.add('hidden');
+      }
+    }
+  });
+}
+
+// Coordinator Tab Switcher
+function switchCoordTab(tab) {
+  const tabs = {
+    instructors: { btn: btnCoordTabInstructors, content: tabContentInstructors },
+    fichas: { btn: btnCoordTabFichas, content: tabContentFichas },
+    evidences: { btn: btnCoordTabEvidences, content: tabContentEvidences },
+    dual: { btn: btnCoordTabDual, content: tabContentDual },
+    audit: { btn: btnCoordTabAudit, content: tabContentAudit }
+  };
+
+  Object.entries(tabs).forEach(([name, t]) => {
+    if (t.btn && t.content) {
+      if (name === tab) {
+        t.btn.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-[#39A900] text-white transition-all";
+        t.content.classList.remove('hidden');
+      } else {
+        t.btn.className = "px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all";
+        t.content.classList.add('hidden');
+      }
+    }
+  });
+}
+
+// Load Public Fichas for Self-Registration
+async function loadPublicFichas() {
+  if (!regFichaSelect) return;
+  regFichaSelect.innerHTML = '<option value="">Cargando fichas activas...</option>';
+  try {
+    const res = await fetch(`${state.apiUrl}/public/fichas`);
+    const result = await res.json();
+    if (res.ok && result.data) {
+      if (result.data.length === 0) {
+        regFichaSelect.innerHTML = '<option value="">No hay fichas activas disponibles</option>';
+        return;
+      }
+      regFichaSelect.innerHTML = '<option value="">-- Selecciona tu ficha académica --</option>' + 
+        result.data.map(f => `<option value="${f.id}">${f.code} - ${f.name} (${f.jornada || 'DIURNA'})</option>`).join('');
+    } else {
+      regFichaSelect.innerHTML = '<option value="">Error cargando fichas</option>';
+    }
+  } catch (err) {
+    regFichaSelect.innerHTML = '<option value="">Error de conexión</option>';
+  }
+}
+
+function openStudentRegisterModal() {
+  if (!studentRegisterModal) return;
+  registerFeedback?.classList.add('hidden');
+  studentRegisterForm?.reset();
+  studentRegisterModal.classList.remove('hidden');
+  loadPublicFichas();
+}
+
+// Load Active Session for Student (Tab 1)
+async function loadStudentActiveSession() {
+  if (!studentActiveSessionContent) return;
+  studentActiveSessionContent.innerHTML = `
+    <div class="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+      <svg class="w-8 h-8 animate-spin text-[#39A900] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.2"/></svg>
+      <p class="text-sm font-medium">Verificando si tu instructor ha abierto clase...</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`${state.apiUrl}/api/student/active-session`, {
+      headers: { 'Authorization': `Bearer ${state.token}` }
+    });
+    if (handleAuthError(res)) return;
+
+    const result = await res.json();
+    if (!res.ok) {
+      studentActiveSessionContent.innerHTML = `
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center text-red-400 text-sm">
+          Error al verificar la sesión: ${result.error?.message || 'Error desconocido'}
+        </div>
+      `;
+      return;
+    }
+
+    const { hasActiveSession, alreadyCheckedIn, checkinRecord, session } = result.data;
+
+    if (!hasActiveSession || !session) {
+      studentActiveSessionContent.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+          <div class="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3">
+            <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <h4 class="text-white font-bold text-base mb-1">No hay ninguna sesión activa en este momento</h4>
+          <p class="text-xs text-slate-500 max-w-sm">Tu instructor abrirá la sala de asistencia al inicio de la jornada formativa presencial.</p>
+        </div>
+      `;
+      return;
+    }
+
+    if (alreadyCheckedIn) {
+      const rec = checkinRecord || {};
+      const horaIngreso = rec.hora_ingreso_real || '-';
+      const horasVal = rec.horas_validadas_asistencia || 6;
+      const horasProg = rec.horas_programadas_sesion || 6;
+      const statusClass = rec.status === 'PRESENTE' || rec.status === 'accepted' ? 'text-green-400 bg-green-500/10 border-green-500/20' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+
+      studentActiveSessionContent.innerHTML = `
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono font-bold text-[#39A900]">${session.unitCode}</span>
+                <span class="text-xs text-slate-400 font-semibold">${session.unitName}</span>
+              </div>
+              <h4 class="text-lg font-bold text-white mt-0.5">¡Asistencia Registrada Correctamente!</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Hora de ingreso acreditada: <span class="text-white font-mono font-bold">${horaIngreso}</span></p>
+            </div>
+          </div>
+          <div class="flex flex-col items-center md:items-end gap-1">
+            <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold border ${statusClass}">${rec.status || 'REGULAR'}</span>
+            <span class="text-xs font-mono text-slate-300 mt-1">${horasVal}h / ${horasProg}h computadas</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Session is open and student has NOT checked in yet
+    const mode = session.validationMode || 'IP_AND_QR';
+    let modeBadge = `<span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">${mode}</span>`;
+    
+    studentActiveSessionContent.innerHTML = `
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+              <span class="text-xs font-mono font-bold text-[#39A900]">Ficha ${session.unitCode}</span>
+              ${modeBadge}
+            </div>
+            <h4 class="text-lg font-bold text-white">${session.unitName}</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Sesión abierta a las ${new Date(session.createdAt).toLocaleTimeString('es-CO')}. Registra tu asistencia.</p>
+          </div>
+        </div>
+
+        <div id="studentCheckinActionArea" class="flex flex-col sm:flex-row items-center gap-3">
+          <button 
+            id="btnStudentScanQr" 
+            onclick="startQrScanner()"
+            class="w-full sm:w-auto px-6 py-3 bg-[#39A900] hover:bg-[#329200] active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-[#39A900]/20 flex items-center justify-center gap-2"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h.01M16 20h2M4 12h2m0 0H4m-2 0h2m14-4V4m0 8h2m-2-4h-2m-8 8v4m0 0v-4m-2 4h2M4 20h2m-2 0V16m2 4h2m4-12h.01M16 16h.01M20 12h.01"/></svg>
+            <span>Escanear QR del Aula</span>
+          </button>
+          <button 
+            id="btnStudentManualCode" 
+            onclick="promptManualCode('${session.id}')"
+            class="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition-all border border-slate-700 flex items-center justify-center gap-2"
+          >
+            <span>Ingresar Código de 6 Caracteres</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+  } catch (err) {
+    studentActiveSessionContent.innerHTML = `<div class="p-4 text-center text-red-400 text-xs">Error de conexión al verificar sesión.</div>`;
+  }
+}
+
+window.promptManualCode = (sessionId) => {
+  const code = prompt('Ingresa el código alfanumérico de 6 caracteres visible en la pantalla del docente:');
+  if (!code) return;
+  const cleanCode = code.trim().toUpperCase();
+  if (cleanCode.length < 6) {
+    alert('El código debe tener al menos 6 caracteres.');
+    return;
+  }
+  window.location.href = `/attendance/${cleanCode}`;
+};
+
 
 // Load Fichas into dropdown
 async function loadFichas() {
@@ -1339,11 +1904,14 @@ async function fetchStudentHistory() {
     const res = await fetch(`${state.apiUrl}/api/student/history`, {
       headers: { 'Authorization': `Bearer ${state.token}` }
     });
+    if (handleAuthError(res)) return;
+
     const result = await res.json();
-    if (res.ok) {
+    if (res.ok && result.data) {
       renderStudentHistoryGrid(result.data.history);
+      renderStudentExcuses(result.data.excuses);
     } else {
-      console.error('Error fetching student history:', result.error.message);
+      console.error('Error fetching student history:', result.error?.message);
     }
   } catch (err) {
     console.error('Error in student history fetch:', err);
@@ -1481,6 +2049,80 @@ async function sendExcuse(sessionId, text, fileName, fileData) {
     }
   } catch (err) {
     alert('Error de red al presentar la excusa.');
+  }
+}
+
+function renderStudentExcuses(excuses) {
+  if (!studentExcusesGridBody) return;
+  studentExcusesGridBody.innerHTML = '';
+
+  if (!excuses || excuses.length === 0) {
+    studentExcusesGridBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-center py-8 text-slate-500">No has radicado ninguna justificación aún.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  excuses.forEach(e => {
+    let statusBadge = '<span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">PENDIENTE</span>';
+    if (e.status === 'approved') {
+      statusBadge = '<span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-green-500/10 text-green-400 border border-green-500/20">APROBADA</span>';
+    } else if (e.status === 'rejected') {
+      statusBadge = '<span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">RECHAZADA</span>';
+    }
+
+    let supportLink = '<span class="text-slate-500 text-xs">Sin soporte</span>';
+    if (e.file_data) {
+      supportLink = `
+        <a href="${e.file_data}" download="${e.file_name || 'soporte'}" class="text-xs text-[#39A900] hover:underline font-semibold inline-flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <span>Descargar</span>
+        </a>
+      `;
+    }
+
+    const radicadoAt = e.created_at ? new Date(e.created_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+
+    studentExcusesGridBody.innerHTML += `
+      <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
+        <td class="py-3 px-4 font-mono text-xs text-slate-400">${e.session_id ? e.session_id.substring(0, 10) : '-'}</td>
+        <td class="py-3 px-4 text-xs text-slate-200 max-w-xs truncate" title="${e.text}">${e.text}</td>
+        <td class="py-3 px-4">${supportLink}</td>
+        <td class="py-3 px-4">${statusBadge}</td>
+        <td class="py-3 px-4 font-mono text-xs text-slate-400">${radicadoAt}</td>
+      </tr>
+    `;
+  });
+}
+
+async function handleDeleteStudentAccount() {
+  const confirmed = confirm(
+    "¿ESTÁS SEGURO DE QUE DESEAS SUPRIMIR TU CUENTA?\\n\\nDe acuerdo con la Ley Estatutaria 1581 de 2012 (Habeas Data), tus datos personales (nombre, documento, correo) serán disociados y anonimizados permanentemente en la base de datos.\\n\\nEsta acción es irreversible y cerrará tu acceso al sistema."
+  );
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${state.apiUrl}/api/student/delete-account`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${state.token}`
+      }
+    });
+    const result = await res.json();
+    if (res.ok) {
+      alert(result.data?.message || 'Cuenta y datos personales anonimizados con éxito.');
+      state.token = '';
+      state.person = null;
+      localStorage.removeItem('token');
+      localStorage.removeItem('person');
+      showPortal();
+    } else {
+      alert(`Error: ${result.error?.message || 'No se pudo eliminar la cuenta.'}`);
+    }
+  } catch (err) {
+    alert('Error de conexión al solicitar la supresión de cuenta.');
   }
 }
 
@@ -2049,11 +2691,21 @@ function renderCoordFichas(fichas) {
   }
 
   fichas.forEach(f => {
-    const statusText = f.active 
+    let statusText = f.active 
       ? '<span class="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-green-500/10 text-green-400 border border-green-500/20">ACTIVA</span>'
       : '<span class="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">INACTIVA</span>';
 
+    if (f.status === 'PENDING_DELETION') {
+      statusText = '<span class="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-orange-500/10 text-orange-400 border border-orange-500/20">BAJA PENDIENTE</span>';
+    }
+
     const toggleText = f.active ? 'Desactivar' : 'Activar';
+
+    const deleteBtn = (f.status !== 'PENDING_DELETION' && f.status !== 'DELETED') ? `
+      <button onclick="openRequestFichaDeletionModal('${f.id}', '${f.code}', '${f.name}')" class="text-xs bg-red-950/20 border border-red-500/20 hover:bg-red-900/30 text-red-400 px-2.5 py-1 rounded-md transition-all">
+        Solicitar Baja
+      </button>
+    ` : '';
 
     coordFichasGridBody.innerHTML += `
       <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
@@ -2069,6 +2721,7 @@ function renderCoordFichas(fichas) {
             <button onclick="toggleFichaActive('${f.id}', '${f.name}', ${f.active})" class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-red-400 px-2.5 py-1 rounded-md transition-all">
               ${toggleText}
             </button>
+            ${deleteBtn}
           </div>
         </td>
       </tr>
@@ -2273,3 +2926,182 @@ window.downloadCoordExcelReport = async (sessionId, fichaCode) => {
   }
 };
 
+// ── COORDINATOR DUAL APPROVALS & AUDIT LOGS (PHASE 3 & 4) ────────────────────
+
+// Fetch Dual Deletion Requests (BR-08 Four-Eyes Principle)
+async function fetchCoordDualApprovals() {
+  if (!coordDualGridBody) return;
+  coordDualGridBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-500">Cargando solicitudes de baja...</td></tr>';
+  try {
+    const res = await fetch(`${state.apiUrl}/api/coord/deletion-requests`, {
+      headers: { 'Authorization': `Bearer ${state.token}` }
+    });
+    if (handleAuthError(res)) return;
+
+    const result = await res.json();
+    if (res.ok) {
+      renderCoordDualApprovals(result.data);
+    } else {
+      coordDualGridBody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-400">Error: ${result.error?.message || 'Error al cargar'}</td></tr>`;
+    }
+  } catch (err) {
+    coordDualGridBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-red-400">Error de conexión.</td></tr>';
+  }
+}
+
+function renderCoordDualApprovals(requests) {
+  if (!coordDualGridBody) return;
+  coordDualGridBody.innerHTML = '';
+  if (!requests || requests.length === 0) {
+    coordDualGridBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-slate-500">No hay solicitudes de baja pendientes de segundo par.</td></tr>';
+    return;
+  }
+
+  const currentUserId = state.person?.id;
+
+  requests.forEach(r => {
+    const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+    const isSelf = r.requested_by === currentUserId;
+
+    let actionCol = '';
+    if (isSelf) {
+      actionCol = `<span class="inline-flex px-2 py-1 rounded text-[11px] font-semibold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Esperando 2do Coordinador</span>`;
+    } else {
+      actionCol = `
+        <div class="flex justify-end gap-2">
+          <button onclick="approveDualDeletion('${r.id}')" class="text-xs bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 rounded-lg transition-all shadow-md shadow-red-600/20">
+            Aprobar Baja (4 Ojos)
+          </button>
+          <button onclick="rejectDualDeletion('${r.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-2.5 py-1.5 rounded-lg transition-all">
+            Rechazar
+          </button>
+        </div>
+      `;
+    }
+
+    coordDualGridBody.innerHTML += `
+      <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
+        <td class="py-3 px-4 font-mono font-bold text-white">${r.unit_code} - ${r.unit_name}</td>
+        <td class="py-3 px-4 text-slate-300 text-xs">${r.requester_name} <span class="text-slate-500 font-mono">(${r.requester_doc})</span></td>
+        <td class="py-3 px-4 text-xs text-slate-400 max-w-xs truncate" title="${r.reason}">${r.reason}</td>
+        <td class="py-3 px-4 font-mono text-xs text-slate-400">${dateStr}</td>
+        <td class="py-3 px-4">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20">PENDIENTE 4-OJOS</span>
+        </td>
+        <td class="py-3 px-4 text-right">${actionCol}</td>
+      </tr>
+    `;
+  });
+}
+
+window.approveDualDeletion = async (requestId) => {
+  if (!confirm('¿Confirmas la baja definitiva de esta ficha académica cumpliendo con el principio de 4 Ojos (BR-08)?')) return;
+  try {
+    const res = await fetch(`${state.apiUrl}/api/coord/deletion-requests/${requestId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.token}`
+      }
+    });
+    const result = await res.json();
+    if (res.ok) {
+      alert(result.data?.message || 'Ficha eliminada exitosamente.');
+      fetchCoordDualApprovals();
+      fetchCoordFichas();
+    } else {
+      alert(`Error: ${result.error?.message || 'No se pudo aprobar la baja.'}`);
+    }
+  } catch (err) {
+    alert('Error al procesar la aprobación dual.');
+  }
+};
+
+window.rejectDualDeletion = async (requestId) => {
+  const reason = prompt('Motivo del rechazo de la solicitud:');
+  if (reason === null) return;
+  try {
+    const res = await fetch(`${state.apiUrl}/api/coord/deletion-requests/${requestId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.token}`
+      },
+      body: JSON.stringify({ rejectionReason: reason })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      alert(result.data?.message || 'Solicitud rechazada.');
+      fetchCoordDualApprovals();
+      fetchCoordFichas();
+    } else {
+      alert(`Error: ${result.error?.message || 'No se pudo rechazar.'}`);
+    }
+  } catch (err) {
+    alert('Error al rechazar la solicitud.');
+  }
+};
+
+// Fetch System Audit Logs (Immutable Master Log)
+async function fetchCoordAuditLogs() {
+  if (!coordAuditGridBody) return;
+  coordAuditGridBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-500 font-sans">Cargando libro de auditoría...</td></tr>';
+  try {
+    const res = await fetch(`${state.apiUrl}/api/coord/audit-logs`, {
+      headers: { 'Authorization': `Bearer ${state.token}` }
+    });
+    if (handleAuthError(res)) return;
+
+    const result = await res.json();
+    if (res.ok) {
+      renderCoordAuditLogs(result.data);
+    } else {
+      coordAuditGridBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-400 font-sans">Error: ${result.error?.message || 'Error al cargar'}</td></tr>`;
+    }
+  } catch (err) {
+    coordAuditGridBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-red-400 font-sans">Error de conexión.</td></tr>';
+  }
+}
+
+function renderCoordAuditLogs(logs) {
+  if (!coordAuditGridBody) return;
+  coordAuditGridBody.innerHTML = '';
+  if (!logs || logs.length === 0) {
+    coordAuditGridBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-500 font-sans">No hay eventos de auditoría registrados.</td></tr>';
+    return;
+  }
+
+  logs.forEach(l => {
+    const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'medium' }) : '-';
+    const actor = l.actor_name ? `${l.actor_name} (${l.actor_doc})` : (l.actor_id || 'SYSTEM');
+
+    let actionBadge = `<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">${l.action}</span>`;
+    if (l.action.includes('DELETE') || l.action.includes('ANONYMIZED')) {
+      actionBadge = `<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">${l.action}</span>`;
+    } else if (l.action.includes('APPROVE') || l.action.includes('REGISTRATION')) {
+      actionBadge = `<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20">${l.action}</span>`;
+    }
+
+    const detailObj = l.metadata_json ? JSON.parse(l.metadata_json) : (l.after_json ? JSON.parse(l.after_json) : {});
+    const detailStr = JSON.stringify(detailObj);
+
+    coordAuditGridBody.innerHTML += `
+      <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
+        <td class="py-2.5 px-4 text-slate-400 whitespace-nowrap">${dateStr}</td>
+        <td class="py-2.5 px-4 whitespace-nowrap">${actionBadge}</td>
+        <td class="py-2.5 px-4 text-slate-300 font-sans text-xs">${actor}</td>
+        <td class="py-2.5 px-4 text-slate-400">${l.entity_type}:${l.entity_id ? l.entity_id.substring(0, 14) : ''}</td>
+        <td class="py-2.5 px-4 text-slate-500 text-[11px] max-w-xs truncate" title="${detailStr}">${detailStr}</td>
+      </tr>
+    `;
+  });
+}
+
+// Open Request Ficha Deletion Modal (BR-08)
+window.openRequestFichaDeletionModal = (id, code, name) => {
+  if (!requestFichaDeletionModal) return;
+  deleteFichaId.value = id;
+  deleteFichaLabel.textContent = `Ficha ${code} - ${name}`;
+  deleteFichaReason.value = '';
+  requestFichaDeletionModal.classList.remove('hidden');
+};

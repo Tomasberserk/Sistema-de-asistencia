@@ -218,6 +218,24 @@ export async function initDb() {
     )
   `);
 
+  try {
+    if (!isPostgres) {
+      await run(`
+        DELETE FROM attendance_records 
+        WHERE rowid NOT IN (
+          SELECT MIN(rowid) FROM attendance_records GROUP BY session_id, person_id
+        )
+      `);
+    }
+  } catch (e) {
+    // Ignore cleanup error if table empty
+  }
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_session_person 
+    ON attendance_records(session_id, person_id)
+  `);
+
   await run(`
     CREATE TABLE IF NOT EXISTS excuses (
       id TEXT PRIMARY KEY,
@@ -283,6 +301,18 @@ export async function initDb() {
       resolved_at TEXT,
       FOREIGN KEY(requested_by) REFERENCES people(id),
       FOREIGN KEY(approved_by) REFERENCES people(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id TEXT PRIMARY KEY,
+      person_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(person_id) REFERENCES people(id)
     )
   `);
 

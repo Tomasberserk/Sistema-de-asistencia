@@ -2,7 +2,7 @@ process.env.TZ = 'America/Bogota';
 import express from 'express';
 import cors from 'cors';
 import { initDb } from './db.js';
-import { login, studentLogin, authenticate, requireRole, changePassword } from './auth.js';
+import { login, studentLogin, authenticate, requireRole, changePassword, forgotPassword, resetPassword } from './auth.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -49,7 +49,11 @@ import {
   requestFichaDeletion,
   approveFichaDeletion,
   rejectFichaDeletion,
-  getPendingDeletionRequests
+  getPendingDeletionRequests,
+  getPublicFichas,
+  registerStudent,
+  getStudentActiveSession,
+  getAuditLogs
 } from './controllers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -66,9 +70,13 @@ app.use(express.static(path.resolve(__dirname, '../../frontend')));
 app.get('/health', (req, res) => res.status(200).send('ok'));
 app.get('/ready',  (req, res) => res.status(200).send('ready'));
 
-// ── Public Auth ───────────────────────────────────────────────────────────────
+// ── Public Auth & Registration ───────────────────────────────────────────────
 app.post('/api/auth/login', login);
 app.post('/public/student/login', studentLogin);
+app.post('/public/student/register', registerStudent);
+app.get('/public/fichas', getPublicFichas);
+app.post('/public/auth/forgot-password', forgotPassword);
+app.post('/public/auth/reset-password', resetPassword);
 app.post('/api/auth/change-password', authenticate, changePassword);
 
 // ── Public Check-in endpoints ─────────────────────────────────────────────────
@@ -1393,6 +1401,7 @@ app.get('/reports/session/:sessionId',                 authenticate, getSessionR
 
 // Student Portal
 app.get('/api/student/history',                        authenticate, getStudentHistory);
+app.get('/api/student/active-session',                 authenticate, getStudentActiveSession);
 app.post('/api/student/excuses',                       authenticate, submitExcuse);
 app.post('/api/excuses/submit',                        authenticate, submitExcuse);
 app.delete('/api/student/delete-account',              authenticate, deleteStudentAccount);
@@ -1423,6 +1432,7 @@ app.get('/api/coord/deletion-requests',                authenticate, requireRole
 app.post('/api/coord/deletion-requests/:requestId/approve', authenticate, requireRole('COORDINADOR'), approveFichaDeletion);
 app.post('/api/coord/deletion-requests/:requestId/reject',  authenticate, requireRole('COORDINADOR'), rejectFichaDeletion);
 app.get('/api/coord/evidences',                        authenticate, requireRole('COORDINADOR'), getCoordEvidences);
+app.get('/api/coord/audit-logs',                        authenticate, requireRole('COORDINADOR'), getAuditLogs);
 
 // ── Error Handling ────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -1433,7 +1443,8 @@ app.use((err, req, res, next) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 await initDb();
 
-if (process.env.VERCEL !== '1') {
+const isRunningTests = process.env.NODE_ENV === 'test' || process.argv.some(a => a.includes('test'));
+if (process.env.VERCEL !== '1' && !isRunningTests) {
   app.listen(PORT, () => {
     console.log(`Backend server running at http://localhost:${PORT}`);
   });
