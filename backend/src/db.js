@@ -248,6 +248,44 @@ export async function initDb() {
     )
   `);
 
+  await run(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      date TEXT PRIMARY KEY,
+      name TEXT,
+      active INTEGER DEFAULT 1
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      actor_id TEXT,
+      action TEXT,
+      entity_type TEXT,
+      entity_id TEXT,
+      before_json TEXT,
+      after_json TEXT,
+      metadata_json TEXT,
+      created_at TEXT
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS deletion_requests (
+      id TEXT PRIMARY KEY,
+      entity_type TEXT,
+      entity_id TEXT,
+      requested_by TEXT,
+      approved_by TEXT,
+      status TEXT DEFAULT 'PENDING_APPROVAL',
+      reason TEXT,
+      created_at TEXT,
+      resolved_at TEXT,
+      FOREIGN KEY(requested_by) REFERENCES people(id),
+      FOREIGN KEY(approved_by) REFERENCES people(id)
+    )
+  `);
+
   // Migration: Add created_at column to late_requests if not exists
   try {
     if (isPostgres) {
@@ -385,6 +423,71 @@ export async function initDb() {
     console.error('Migration error (non-fatal) Phase v3:', migv3Err.message);
   }
 
+  // Migration Phase v4: Governance, Holidays, Validation Modes & Audit
+  try {
+    if (isPostgres) {
+      try { await run(`ALTER TABLE academic_units ADD COLUMN status TEXT DEFAULT 'ACTIVE'`); } catch (e) { if (e.code !== '42701') throw e; }
+      try { await run(`ALTER TABLE academic_units ADD COLUMN jornada TEXT DEFAULT 'DIURNA'`); } catch (e) { if (e.code !== '42701') throw e; }
+      try { await run(`ALTER TABLE people ADD COLUMN email TEXT`); } catch (e) { if (e.code !== '42701') throw e; }
+      try { await run(`ALTER TABLE attendance_sessions ADD COLUMN validation_mode TEXT DEFAULT 'IP_AND_QR'`); } catch (e) { if (e.code !== '42701') throw e; }
+      console.log('Migration Phase v4: Columns verified in Postgres');
+    } else {
+      const unitCols = await query(`PRAGMA table_info(academic_units)`);
+      if (!unitCols.some(col => col.name === 'status')) {
+        await run(`ALTER TABLE academic_units ADD COLUMN status TEXT DEFAULT 'ACTIVE'`);
+      }
+      if (!unitCols.some(col => col.name === 'jornada')) {
+        await run(`ALTER TABLE academic_units ADD COLUMN jornada TEXT DEFAULT 'DIURNA'`);
+      }
+
+      const peopleCols = await query(`PRAGMA table_info(people)`);
+      if (!peopleCols.some(col => col.name === 'email')) {
+        await run(`ALTER TABLE people ADD COLUMN email TEXT`);
+      }
+
+      const sessCols = await query(`PRAGMA table_info(attendance_sessions)`);
+      if (!sessCols.some(col => col.name === 'validation_mode')) {
+        await run(`ALTER TABLE attendance_sessions ADD COLUMN validation_mode TEXT DEFAULT 'IP_AND_QR'`);
+      }
+      console.log('Migration Phase v4: Columns verified in SQLite');
+    }
+  } catch (migv4Err) {
+    console.error('Migration error (non-fatal) Phase v4:', migv4Err.message);
+  }
+
+  // Seed Colombian holidays (2026/2027) for business days calculation
+  try {
+    const holidayCount = await get('SELECT COUNT(*) as count FROM holidays');
+    if (Number(holidayCount.count) === 0) {
+      const holidaysList = [
+        ['2026-01-01', 'Año Nuevo'],
+        ['2026-01-12', 'Día de los Reyes Magos'],
+        ['2026-03-23', 'Día de San José'],
+        ['2026-04-02', 'Jueves Santo'],
+        ['2026-04-03', 'Viernes Santo'],
+        ['2026-05-01', 'Día del Trabajo'],
+        ['2026-05-18', 'Día de la Ascensión'],
+        ['2026-06-08', 'Corpus Christi'],
+        ['2026-06-15', 'Sagrado Corazón'],
+        ['2026-06-29', 'San Pedro y San Pablo'],
+        ['2026-07-20', 'Día de la Independencia'],
+        ['2026-08-07', 'Batalla de Boyacá'],
+        ['2026-08-17', 'La Asunción de la Virgen'],
+        ['2026-10-12', 'Día de la Raza'],
+        ['2026-11-02', 'Todos los Santos'],
+        ['2026-11-16', 'Independencia de Cartagena'],
+        ['2026-12-08', 'Inmaculada Concepción'],
+        ['2026-12-25', 'Navidad']
+      ];
+      for (const [d, n] of holidaysList) {
+        await run(`INSERT OR IGNORE INTO holidays (date, name, active) VALUES (?, ?, 1)`, [d, n]);
+      }
+      console.log('Database Init: Seeded Colombian holidays successfully.');
+    }
+  } catch (holErr) {
+    console.error('Database Init: Error seeding holidays:', holErr.message);
+  }
+
   // Seed data if institutions is empty
   // NOTE: PostgreSQL returns COUNT(*) as string (bigint), use Number() to compare
   const instCount = await get('SELECT COUNT(*) as count FROM institutions');
@@ -507,3 +610,27 @@ export async function initDb() {
   }
 }
 
+export const createAuditLog = async (actorId, action, entityType, entityId, beforeObj = null, afterObj = null, metadataObj = null) => {
+  try {
+    const id = `aud_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const now = new Date().toISOString();
+    await run(`
+      INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, metadata_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id,
+      actorId || 'SYSTEM',
+      action,
+      entityType,
+      entityId,
+      beforeObj ? JSON.stringify(beforeObj) : null,
+      afterObj ? JSON.stringify(afterObj) : null,
+      metadataObj ? JSON.stringify(metadataObj) : null,
+      now
+    ]);
+    return id;
+  } catch (err) {
+    console.error('Failed to create audit log:', err.message);
+    return null;
+  }
+};

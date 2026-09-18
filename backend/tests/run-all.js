@@ -1,10 +1,11 @@
-﻿/**
+/**
  * SENA ATTENDANCE SYSTEM - Automated Test Runner
  * Ejecuta todas las suites de pruebas unitarias y de integraci├│n.
  */
 import { runHealthTests } from './health.test.js';
 import { runTokenRotationTests } from './token-rotation.test.js';
 import { runPunctualityTests } from './punctuality-hours.test.js';
+import { runGovernanceInvariantTests } from './invariants-governance.test.js';
 
 async function main() {
   console.log('====================================================');
@@ -18,6 +19,7 @@ async function main() {
     await runHealthTests();
     await runTokenRotationTests();
     await runPunctualityTests();
+    await runGovernanceInvariantTests();
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log('\n====================================================');

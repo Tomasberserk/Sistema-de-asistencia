@@ -45,7 +45,11 @@ import {
   deleteStudentAccount,
   acceptStudentTerms,
   getPendingBiometrics,
-  resolveBiometricException
+  resolveBiometricException,
+  requestFichaDeletion,
+  approveFichaDeletion,
+  rejectFichaDeletion,
+  getPendingDeletionRequests
 } from './controllers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1414,6 +1418,10 @@ app.put('/api/coord/instructors/:id',                  authenticate, requireRole
 app.get('/api/coord/fichas',                           authenticate, requireRole('COORDINADOR'), getCoordFichas);
 app.post('/api/coord/fichas',                          authenticate, requireRole('COORDINADOR'), createFicha);
 app.put('/api/coord/fichas/:id',                       authenticate, requireRole('COORDINADOR'), updateFicha);
+app.post('/api/coord/fichas/:id/request-deletion',     authenticate, requireRole('COORDINADOR'), requestFichaDeletion);
+app.get('/api/coord/deletion-requests',                authenticate, requireRole('COORDINADOR'), getPendingDeletionRequests);
+app.post('/api/coord/deletion-requests/:requestId/approve', authenticate, requireRole('COORDINADOR'), approveFichaDeletion);
+app.post('/api/coord/deletion-requests/:requestId/reject',  authenticate, requireRole('COORDINADOR'), rejectFichaDeletion);
 app.get('/api/coord/evidences',                        authenticate, requireRole('COORDINADOR'), getCoordEvidences);
 
 // ── Error Handling ────────────────────────────────────────────────────────────

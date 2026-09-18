@@ -1,4 +1,4 @@
-import { run, get, query } from './db.js';
+import { run, get, query, createAuditLog } from './db.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -82,9 +82,9 @@ export const calculateAttendanceBlocks = (activatedAtStr, arrivalTimeStr, durati
   const activated = new Date(activatedAtStr);
   const arrival = new Date(arrivalTimeStr);
   const diffMs = Math.max(0, arrival.getTime() - activated.getTime());
-  const minutesElapsed = Math.floor(diffMs / 60000);
 
-  if (minutesElapsed <= 15) {
+  // Grace period: exactly 15 minutes (15 * 60 * 1000 ms)
+  if (diffMs <= 15 * 60 * 1000) {
     return {
       horasAsistidas: durationHours,
       horasFalla: 0,
@@ -93,7 +93,10 @@ export const calculateAttendanceBlocks = (activatedAtStr, arrivalTimeStr, durati
     };
   }
 
-  const blocksLost = Math.min(durationHours, Math.ceil(minutesElapsed / 60));
+  // Any second past 15 min enters hourly block deduction
+  // 15:01 to 60:00 -> 1 block lost
+  // 60:01 to 120:00 -> 2 blocks lost
+  const blocksLost = Math.min(durationHours, Math.ceil(diffMs / (60 * 60 * 1000)));
   const horasAsistidas = durationHours - blocksLost;
 
   return {
@@ -102,6 +105,52 @@ export const calculateAttendanceBlocks = (activatedAtStr, arrivalTimeStr, durati
     tipoRegistro: `RETARDO_BLOQUE_${blocksLost}`,
     status: horasAsistidas === 0 ? 'ASISTENCIA_PARCIAL' : 'ASISTENCIA_PARCIAL'
   };
+};
+
+// Deterministic Time & Working Days Calculation (America/Bogota)
+export const getBogotaDateString = (dateObj) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(dateObj);
+};
+
+export const calculateBusinessDaysDeadline = async (sessionDateStr, allowedDays = 3) => {
+  const sessionDate = new Date(sessionDateStr);
+  const holidayRows = await query('SELECT date FROM holidays WHERE active = 1');
+  const holidaySet = new Set(holidayRows.map(h => h.date));
+
+  let businessDaysCounted = 0;
+  let targetBogotaDateStr = '';
+
+  for (let i = 1; i <= 30; i++) {
+    const nextDay = new Date(sessionDate.getTime() + i * 24 * 60 * 60 * 1000);
+    const dateStr = getBogotaDateString(nextDay);
+    const parts = dateStr.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0)).getUTCDay();
+    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+    const isHoliday = holidaySet.has(dateStr);
+
+    if (!isWeekend && !isHoliday) {
+      businessDaysCounted++;
+      if (businessDaysCounted === allowedDays) {
+        targetBogotaDateStr = dateStr;
+        break;
+      }
+    }
+  }
+
+  // End of third business day at 23:59:59.999 America/Bogota (UTC-5)
+  return new Date(`${targetBogotaDateStr}T23:59:59.999-05:00`);
+};
+
+export const isWithinBusinessDays = async (sessionDateStr, submissionDate = new Date(), allowedDays = 3) => {
+  const subDate = new Date(submissionDate);
+  const deadline = await calculateBusinessDaysDeadline(sessionDateStr, allowedDays);
+  return subDate.getTime() <= deadline.getTime();
 };
 
 // Catalog Controllers
@@ -142,9 +191,32 @@ export const getPeople = async (req, res) => {
 // Room Controllers
 export const createRoom = async (req, res) => {
   try {
-    const { institutionId, unitId, qrTtlMinutes = 15, ipCheckEnabled = true } = req.body;
+    const { institutionId, unitId, qrTtlMinutes = 15, ipCheckEnabled = true, qrEnabled = true, validationMode } = req.body;
     if (!institutionId || !unitId) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'institutionId y unitId son requeridos.' } });
+    }
+
+    const isIpActive = ipCheckEnabled !== false && ipCheckEnabled !== 0 && ipCheckEnabled !== '0';
+    const isQrActive = qrEnabled !== false && qrEnabled !== 0 && qrEnabled !== '0';
+
+    if (!isIpActive && !isQrActive) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_VALIDATION_MODE',
+          message: 'Regla de negocio BR-05: Al menos un método de validación (QR o IP) debe estar activo para crear la sala.'
+        }
+      });
+    }
+
+    let finalMode = 'IP_AND_QR';
+    if (validationMode && ['IP_AND_QR', 'QR_ONLY', 'IP_ONLY'].includes(validationMode)) {
+      finalMode = validationMode;
+    } else if (isIpActive && isQrActive) {
+      finalMode = 'IP_AND_QR';
+    } else if (isQrActive) {
+      finalMode = 'QR_ONLY';
+    } else {
+      finalMode = 'IP_ONLY';
     }
 
     // Check if unit belongs to institution and contains people
@@ -164,13 +236,13 @@ export const createRoom = async (req, res) => {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 15 * 60000); // Strict 15 mins room timer
     const creatorIp = getClientIp(req);
-    const ipCheckVal = ipCheckEnabled ? 1 : 0;
+    const ipCheckVal = isIpActive ? 1 : 0;
 
     await run(`
       INSERT INTO attendance_sessions (
         id, institution_id, unit_id, status, qr_token, qr_expires_at, qr_ttl_minutes,
-        activated_at, room_created_at, room_expires_at, is_reopened, creator_ip, ip_check_enabled
-      ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, 0, ?, ?)
+        activated_at, room_created_at, room_expires_at, is_reopened, creator_ip, ip_check_enabled, validation_mode, created_by
+      ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
     `, [
       sessionId, institutionId, unitId,
       generateQrToken(sessionId, 0),
@@ -180,8 +252,12 @@ export const createRoom = async (req, res) => {
       now.toISOString(),
       expiresAt.toISOString(),
       creatorIp,
-      ipCheckVal
+      ipCheckVal,
+      finalMode,
+      req.user?.id || 'INSTRUCTOR'
     ]);
+
+    await createAuditLog(req.user?.id, 'CREATE_ROOM', 'session', sessionId, null, { validation_mode: finalMode, unitId }, { creatorIp });
 
     const createdSession = await get('SELECT * FROM attendance_sessions WHERE id = ?', [sessionId]);
     res.status(201).json({ data: createdSession });
@@ -923,13 +999,27 @@ export const submitExcuse = async (req, res) => {
       return res.status(400).json({ error: { code: 'DUPLICATE_EXCUSE', message: 'Ya has enviado una excusa para esta clase.' } });
     }
 
-    const excuseId = `exc_${Date.now()}`;
+    // Verify business days deadline (BR-07: 3 working days in America/Bogota)
+    const sessionTime = session.activated_at || session.room_created_at || session.created_at || new Date().toISOString();
     const now = new Date();
+    const isAllowed = await isWithinBusinessDays(sessionTime, now, 3);
+    if (!isAllowed) {
+      return res.status(422).json({
+        error: {
+          code: 'EXCUSE_DEADLINE_EXCEEDED',
+          message: 'Regla de negocio BR-07: El aprendiz podrá radicar una excusa únicamente hasta las 23:59:59 del tercer día hábil siguiente a la sesión.'
+        }
+      });
+    }
+
+    const excuseId = `exc_${Date.now()}`;
 
     await run(`
       INSERT INTO excuses (id, session_id, person_id, text, file_name, file_data, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
     `, [excuseId, sessionId, studentId, cleanText, cleanFileName || null, fileData || null, now.toISOString()]);
+
+    await createAuditLog(studentId, 'SUBMIT_EXCUSE', 'excuse', excuseId, null, { sessionId, fileName: cleanFileName }, { submissionTime: now.toISOString() });
 
     const created = await get('SELECT * FROM excuses WHERE id = ?', [excuseId]);
     res.status(201).json({ data: created, message: 'Excusa enviada al instructor correctamente.' });
@@ -1346,6 +1436,9 @@ export const createInstructor = async (req, res) => {
     if (!documento || !nombre || !password) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Documento, nombre y contraseña son requeridos.' } });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ error: { code: 'INVALID_PASSWORD_LENGTH', message: 'La contraseña debe tener mínimo 6 caracteres.' } });
+    }
 
     const existing = await get(
       'SELECT id FROM people WHERE documento = ? AND institution_id = ?',
@@ -1362,6 +1455,8 @@ export const createInstructor = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
       [id, institutionId, documento, nombre, `MAT-${documento}`, hashedPwd, JSON.stringify(['INSTRUCTOR'])]
     );
+
+    await createAuditLog(req.user.id, 'CREATE_INSTRUCTOR', 'person', id, null, { documento, nombre });
 
     res.status(201).json({ data: { id, documento, nombre, active: 1, roles: ['INSTRUCTOR'] } });
   } catch (err) {
@@ -1383,8 +1478,11 @@ export const updateInstructor = async (req, res) => {
     let queryStr = 'UPDATE people SET nombre = ?, active = ?';
     let params = [nombre !== undefined ? nombre : instructor.nombre, active !== undefined ? Number(active) : instructor.active];
 
-    if (password) {
-      const hashedPwd = await bcrypt.hash(password, 10);
+    if (password && typeof password === 'string' && password.trim().length > 0) {
+      if (password.trim().length < 6) {
+        return res.status(400).json({ error: { code: 'INVALID_PASSWORD_LENGTH', message: 'La contraseña debe tener mínimo 6 caracteres.' } });
+      }
+      const hashedPwd = await bcrypt.hash(password.trim(), 10);
       queryStr += ', password = ?';
       params.push(hashedPwd);
     }
@@ -1393,6 +1491,7 @@ export const updateInstructor = async (req, res) => {
     params.push(id);
 
     await run(queryStr, params);
+    await createAuditLog(req.user.id, 'UPDATE_INSTRUCTOR', 'person', id, { nombre: instructor.nombre, active: instructor.active }, { nombre, active });
 
     res.json({ data: { id, message: 'Instructor actualizado con éxito.' } });
   } catch (err) {
@@ -1404,7 +1503,7 @@ export const getCoordFichas = async (req, res) => {
   try {
     const institutionId = req.user.institutionId;
     const rows = await query(
-      `SELECT au.id, au.code, au.name, au.active, COUNT(e.id) as learners_count
+      `SELECT au.id, au.code, au.name, au.jornada, au.status, au.active, COUNT(e.id) as learners_count
        FROM academic_units au
        LEFT JOIN enrollments e ON au.id = e.unit_id AND e.active = 1
        WHERE au.institution_id = ? AND au.type = 'ficha'
@@ -1420,7 +1519,7 @@ export const getCoordFichas = async (req, res) => {
 
 export const createFicha = async (req, res) => {
   try {
-    const { code, name } = req.body;
+    const { code, name, jornada = 'DIURNA' } = req.body;
     const institutionId = req.user.institutionId;
 
     if (!code || !name) {
@@ -1437,12 +1536,14 @@ export const createFicha = async (req, res) => {
 
     const id = `unit_ficha_${code}`;
     await run(
-      `INSERT INTO academic_units (id, institution_id, code, name, type, active)
-       VALUES (?, ?, ?, ?, 'ficha', 1)`,
-      [id, institutionId, code, name]
+      `INSERT INTO academic_units (id, institution_id, code, name, type, jornada, status, active)
+       VALUES (?, ?, ?, ?, 'ficha', ?, 'ACTIVE', 1)`,
+      [id, institutionId, code, name, jornada]
     );
 
-    res.status(201).json({ data: { id, code, name, active: 1, learners_count: 0 } });
+    await createAuditLog(req.user.id, 'CREATE_FICHA', 'ficha', id, null, { code, name, jornada });
+
+    res.status(201).json({ data: { id, code, name, jornada, status: 'ACTIVE', active: 1, learners_count: 0 } });
   } catch (err) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -1451,7 +1552,7 @@ export const createFicha = async (req, res) => {
 export const updateFicha = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, active } = req.body;
+    const { code, name, active, jornada } = req.body;
     const institutionId = req.user.institutionId;
 
     const unit = await get('SELECT * FROM academic_units WHERE id = ? AND institution_id = ?', [id, institutionId]);
@@ -1459,17 +1560,174 @@ export const updateFicha = async (req, res) => {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Ficha no encontrada.' } });
     }
 
-    const queryStr = 'UPDATE academic_units SET code = ?, name = ?, active = ? WHERE id = ?';
+    const queryStr = 'UPDATE academic_units SET code = ?, name = ?, active = ?, jornada = ? WHERE id = ?';
     const params = [
       code !== undefined ? code : unit.code,
       name !== undefined ? name : unit.name,
       active !== undefined ? Number(active) : unit.active,
+      jornada !== undefined ? jornada : (unit.jornada || 'DIURNA'),
       id
     ];
 
     await run(queryStr, params);
+    await createAuditLog(req.user.id, 'UPDATE_FICHA', 'ficha', id, { code: unit.code, name: unit.name }, { code, name, jornada, active });
 
     res.json({ data: { id, message: 'Ficha actualizada con éxito.' } });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+};
+
+// ── TWO-PERSON RULE (REGLA DE 4 OJOS / BR-08) ─────────────────────────────────
+
+export const requestFichaDeletion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason = 'Eliminación solicitada por coordinación' } = req.body;
+    const requesterId = req.user.id;
+    const institutionId = req.user.institutionId;
+
+    const unit = await get('SELECT * FROM academic_units WHERE id = ? AND institution_id = ?', [id, institutionId]);
+    if (!unit) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Ficha no encontrada.' } });
+    }
+
+    const existingReq = await get(`SELECT * FROM deletion_requests WHERE entity_type = 'ficha' AND entity_id = ? AND status = 'PENDING_APPROVAL'`, [id]);
+    if (existingReq) {
+      return res.status(409).json({ error: { code: 'DUPLICATE_DELETION_REQUEST', message: 'Ya existe una solicitud de eliminación pendiente para esta ficha.' } });
+    }
+
+    const reqId = `del_req_${Date.now()}`;
+    const now = new Date().toISOString();
+
+    await run(`
+      INSERT INTO deletion_requests (id, entity_type, entity_id, requested_by, status, reason, created_at)
+      VALUES (?, 'ficha', ?, ?, 'PENDING_APPROVAL', ?, ?)
+    `, [reqId, id, requesterId, reason, now]);
+
+    await run(`UPDATE academic_units SET status = 'PENDING_DELETION' WHERE id = ?`, [id]);
+
+    await createAuditLog(requesterId, 'REQUEST_FICHA_DELETION', 'ficha', id, { status: unit.status }, { status: 'PENDING_DELETION', requestId: reqId }, { reason });
+
+    res.status(202).json({
+      data: {
+        requestId: reqId,
+        status: 'PENDING_APPROVAL',
+        message: 'Solicitud de eliminación radicada. Requiere la aprobación de un segundo coordinador (Regla de 4 ojos / BR-08).'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+};
+
+export const approveFichaDeletion = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const approverId = req.user.id;
+
+    const delReq = await get('SELECT * FROM deletion_requests WHERE id = ?', [requestId]);
+    if (!delReq) {
+      return res.status(404).json({ error: { code: 'REQUEST_NOT_FOUND', message: 'Solicitud de eliminación no encontrada.' } });
+    }
+
+    if (delReq.requested_by === approverId) {
+      return res.status(403).json({
+        error: {
+          code: 'SELF_APPROVAL_FORBIDDEN',
+          message: 'Regla de negocio BR-08: Un coordinador no puede autoaprobar su propia solicitud de eliminación. Se requiere un segundo coordinador.'
+        }
+      });
+    }
+
+    if (delReq.status !== 'PENDING_APPROVAL') {
+      return res.status(409).json({ error: { code: 'INVALID_STATUS', message: `La solicitud ya fue procesada (Estado: ${delReq.status}).` } });
+    }
+
+    const now = new Date().toISOString();
+
+    await run(`
+      UPDATE deletion_requests
+      SET status = 'APPROVED', approved_by = ?, resolved_at = ?
+      WHERE id = ? AND status = 'PENDING_APPROVAL' AND requested_by <> ?
+    `, [approverId, now, requestId, approverId]);
+
+    await run(`UPDATE academic_units SET active = 0, status = 'DELETED' WHERE id = ?`, [delReq.entity_id]);
+
+    await createAuditLog(approverId, 'APPROVE_FICHA_DELETION', 'ficha', delReq.entity_id, { status: 'PENDING_DELETION' }, { status: 'DELETED', active: 0 }, { requestId, requestedBy: delReq.requested_by });
+
+    res.json({
+      data: {
+        requestId,
+        status: 'APPROVED',
+        message: 'Ficha eliminada exitosamente tras aprobación dual de 4 ojos.'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+};
+
+export const rejectFichaDeletion = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const approverId = req.user.id;
+    const { rejectionReason = 'Rechazada por coordinación' } = req.body;
+
+    const delReq = await get('SELECT * FROM deletion_requests WHERE id = ?', [requestId]);
+    if (!delReq) {
+      return res.status(404).json({ error: { code: 'REQUEST_NOT_FOUND', message: 'Solicitud no encontrada.' } });
+    }
+
+    if (delReq.requested_by === approverId) {
+      return res.status(403).json({
+        error: {
+          code: 'SELF_APPROVAL_FORBIDDEN',
+          message: 'Regla de negocio BR-08: No puedes resolver tu propia solicitud de eliminación.'
+        }
+      });
+    }
+
+    if (delReq.status !== 'PENDING_APPROVAL') {
+      return res.status(409).json({ error: { code: 'INVALID_STATUS', message: 'La solicitud ya fue procesada.' } });
+    }
+
+    const now = new Date().toISOString();
+    await run(`
+      UPDATE deletion_requests
+      SET status = 'REJECTED', approved_by = ?, resolved_at = ?
+      WHERE id = ? AND status = 'PENDING_APPROVAL'
+    `, [approverId, now, requestId]);
+
+    await run(`UPDATE academic_units SET status = 'ACTIVE' WHERE id = ?`, [delReq.entity_id]);
+
+    await createAuditLog(approverId, 'REJECT_FICHA_DELETION', 'ficha', delReq.entity_id, { status: 'PENDING_DELETION' }, { status: 'ACTIVE' }, { requestId, rejectionReason });
+
+    res.json({
+      data: {
+        requestId,
+        status: 'REJECTED',
+        message: 'Solicitud rechazada. La ficha permanece activa.'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+};
+
+export const getPendingDeletionRequests = async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT dr.id, dr.entity_type, dr.entity_id, dr.requested_by, dr.status, dr.reason, dr.created_at,
+             p.nombre as requester_name, p.documento as requester_doc,
+             u.code as unit_code, u.name as unit_name
+      FROM deletion_requests dr
+      JOIN people p ON dr.requested_by = p.id
+      LEFT JOIN academic_units u ON dr.entity_id = u.id
+      WHERE dr.status = 'PENDING_APPROVAL'
+      ORDER BY dr.created_at DESC
+    `);
+    res.json({ data: rows });
   } catch (err) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }

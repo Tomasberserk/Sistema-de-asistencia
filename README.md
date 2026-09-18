@@ -1,74 +1,102 @@
-# 📋 Sistema de Control de Asistencia Académica SENA (`sena-attendance-system`)
+# Monolith Governance Framework
 
-> **Monorepo Modular Ligero para Control de Asistencia Presencial con Código QR Rotativo, Biometría Facial IA y Mitigación de Fraude.**
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![version 2.0.0](https://img.shields.io/badge/version-2.0.0-blue.svg)](CHANGELOG.md)
+[![jesusarielgb-works](https://img.shields.io/badge/org-jesusarielgb--works-lightgrey.svg)](https://github.com/jesusarielgb-works)
 
----
+> A Software Design Documentation framework for teams building **one deployable
+> application**: fifteen sections saying what to write down, in what order,
+> and when each is finished.
 
-## 🚀 Objetivo del Proyecto
-Optimizar el tiempo de toma de lista tradicional en el aula de clase de **~15-25 minutos a un proceso fluido de máximo 1 minuto por aprendiz**, automatizando el cómputo de horas lectivas asistidas (de 6h a 0h por retardo) sin interrumpir la clase y garantizando la presencia física mediante códigos QR dinámicos rotativos (HMAC-SHA256), verificación de red local y reconocimiento facial en el navegador.
+**Author:** [Jesus Ariel Gonzalez Bonilla](https://github.com/jesusarielgb-works)
 
----
+## Scope
 
-## 📑 Documentación Canónica
+- One application, one build, one deployment — organised internally as modules
+- Module boundaries drawn in the business language and enforced by the build
+- One relational database, with exactly one owning module per table
+- One public API surface, one pipeline, one process to observe and operate
+- Stack guides for Java/Spring, Node/TypeScript, Python/Django and PHP/Laravel
 
-Toda la documentación técnica, arquitectónica y de requerimientos se encuentra organizada en [`docs/`](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs):
+The growth path this framework supports is **toward the modular monolith**: firmer
+boundaries inside the same deployable, not more deployables.
 
-- **[📄 Documento de Discovery & Mini-SRS](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/DISCOVERY.md):** Especificación de requerimientos de software (SRS) inicial estructurada por ingeniería inversa.
-- **[🏛️ Arquitectura del Sistema](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/architecture/architecture.md):** Topología física y lógica de capas.
-- **[🔌 Contrato de la API REST](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/api/api-contract.md):** Endpoints, parámetros y respuestas JSON.
-- **[🗄️ Modelo de Datos Relacional](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/database/data-model.md):** Diagramas y diccionario de tablas SQL.
-- **[🎓 Ingeniería Inversa & Casos de Uso](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/academic/INVENTARIO.md):** Catálogo de los 9 escenarios reales de aula.
-- **[⚖️ Decisiones de Arquitectura (ADRs)](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/decisions/):** ADR 001 (Stack), ADR 002 (QR Rotativo), ADR 003 (Reorganización Canónica).
-- **[👥 Gobernanza del Repositorio](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/governance/repository-governance.md):** Git Flow, Conventional Commits y matriz de roles.
-- **[📖 Runbook de Operaciones](file:///C:/Users/Aprendiz/.gemini/antigravity/scratch/ejemplo/docs/operations/runbook.md):** Manual de instalación, despliegue y solución de incidentes.
+## Out of scope
 
----
+- Service decomposition and inter-service communication
+- Distributed transactions, service mesh, api gateway, service discovery
+- Per-service deployment, versioning and release trains
+- Resilience patterns for remote calls, such as the circuit breaker or the saga
 
-## 🛠️ Stack Tecnológico
+Distributed-system concerns belong to the
+[microservices governance framework](https://github.com/jesusarielgb-works/microservices-governance-framework).
 
-| Capa | Tecnología |
+## How to use this framework
+
+1. Read [`00-sdd-guide.md`](./00-sdd-guide.md) — the four phases, their gates, and the
+   week-by-week fill-in order.
+2. Copy this repository into your project as its documentation root, or fork it.
+3. Choose your stack guide in [`_stacks/`](./_stacks/README.md) and adopt its folder
+   tree and commands before Week 1.
+4. Agree [`00-governance/`](./00-governance/README.md) first — it is what every later
+   section is measured against.
+5. Fill the remaining sections in the guide's order, one phase at a time.
+6. Delete a document's INSTRUCTIONS block only once that document is complete and a
+   second person has reviewed it.
+7. Update the affected document in the same pull request as the code it describes.
+
+## How the sections depend on each other
+
+```mermaid
+flowchart TD
+    GV["00-governance"] -.-> CX["01-context"]
+    CX --> DM["02-domain"] --> PR["03-product"] --> RQ["04-requirements"] --> AR["05-architecture"]
+    ST["_stacks"] -.-> AR
+    AR --> DA["06-data"] --> MD["09-modules"]
+    AR --> AP["07-api"] --> MD
+    AR --> UM["08-uml"] --> MD
+    MD --> UX["12-ux-ui"]
+    RQ -.-> UX
+    MD --> DO["10-devops"]
+    MD --> QA["11-quality"]
+    MD --> OP["13-operations"]
+```
+
+A solid arrow means the target section cannot be answered honestly until the source
+one is — the order `00-sdd-guide.md` fills them in. A dotted arrow is the weaker
+relationship, and covers two cases: a cross-cutting section, read once and applied
+throughout (`00-governance`, `_stacks`), or an input that informs a section without
+gating its order (`04-requirements` feeding `12-ux-ui`).
+
+## The fifteen sections
+
+| Section | The question it answers |
 |---|---|
-| **Frontend SPA** | HTML5, CSS3, Vanilla JavaScript, Tailwind CSS (CDN), `html5-qrcode`, `face-api.js` |
-| **Backend REST API** | Node.js (Express 5 beta), ES Modules |
-| **Persistencia de Datos** | Conmutable: SQLite3 (`database.sqlite`) en local / PostgreSQL en producción |
-| **Autenticación & Seguridad** | JWT 24h (`jsonwebtoken`), `bcryptjs`, HMAC-SHA256 para rotación QR |
-| **Exportación de Reportes** | SheetJS (`xlsx`) para Excel + `jspdf` / `jspdf-autotable` para PDF |
+| [`00-governance/`](./00-governance/README.md) | How does this team plan, branch, review, close and secure its work? |
+| [`01-context/`](./01-context/README.md) | Why does this system exist, for whom, and where are its edges? |
+| [`02-domain/`](./02-domain/README.md) | What is the business, and where do the module boundaries fall? |
+| [`03-product/`](./03-product/README.md) | Where is the product going, and which problem justifies building it? |
+| [`04-requirements/`](./04-requirements/README.md) | What must the system do, measurably — and how well? |
+| [`05-architecture/`](./05-architecture/README.md) | What internal shape does the single deployable take, and who enforces it? |
+| [`06-data/`](./06-data/README.md) | Which module owns which table, and how does the schema change? |
+| [`07-api/`](./07-api/README.md) | What does the one public API look like to the clients that call it? |
+| [`08-uml/`](./08-uml/README.md) | What do the critical structures and flows look like as diagrams? |
+| [`09-modules/`](./09-modules/README.md) | What does each module own and expose, what has it decided, and how is it run? |
+| [`10-devops/`](./10-devops/README.md) | How does one build artifact reach each environment, and on what conditions? |
+| [`11-quality/`](./11-quality/README.md) | What is tested, at which of the three layers, and written when? |
+| [`12-ux-ui/`](./12-ux-ui/README.md) | What keeps the screens consistent with each other? *(skip if there are none)* |
+| [`13-operations/`](./13-operations/README.md) | How does the running application show its state, and what happens when it fails? |
+| [`_stacks/`](./_stacks/README.md) | What does all of the above look like on disk, in my language? |
 
----
+## How to cite
 
-## ⚡ Puesta en Marcha Rápida (Local)
+> Gonzalez Bonilla, J. A. (2026). *Monolith Governance Framework* (v2.0.0).
+> jesusarielgb-works. https://github.com/jesusarielgb-works/monolith-governance-framework
 
-### 1. Clonar e Instalar Dependencias
-```powershell
-npm run install:all
-```
+## Contributing
 
-### 2. Iniciar el Servidor en Desarrollo
-```powershell
-npm run dev
-```
-El servidor arrancará en `http://localhost:4000`, inicializando automáticamente la base de datos SQLite con los datos semilla.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### 3. Ejecutar Pruebas de Integración
-```powershell
-npm test
-```
+## License
 
----
-
-## 🔑 Credenciales de Acceso por Defecto
-
-| Rol | Documento | Contraseña | Institución | Ficha |
-|---|---|---|---|---|
-| **Instructor SENA** | `1079606375` | `1079606375` | SENA | 3413974 (ADSO) |
-| **Instructor SENA** | `0000000001` | `qwerty.2026` | SENA | 3413974 (ADSO) |
-| **Coordinador SENA** | `9999999999` | `coord.2026` | SENA | Global |
-| **Aprendiz SENA** | `1077228780` | `1077228780` | SENA | 3413974 (ADSO) |
-
----
-
-## 🌐 URLs de Acceso
-
-- **Panel del Instructor / Coordinador:** `http://localhost:4000`
-- **Portal Móvil de Asistencia Aprendiz:** `http://localhost:4000/attendance/manual`
-- **Health Check:** `http://localhost:4000/health`
+MIT — Jesus Ariel Gonzalez Bonilla. See [LICENSE](LICENSE).

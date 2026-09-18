@@ -2208,7 +2208,7 @@ function renderCoordEvidences(evidences) {
         <td class="py-3.5 px-4 text-slate-300 font-medium">${ev.instructor_name || 'Sin asignar'}</td>
         <td class="py-3.5 px-4 text-slate-400 font-mono text-xs">${dateStr}</td>
         <td class="py-3.5 px-4">
-          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusClass}">${statusText}</span>
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${statusClass}">${ev.jornada || 'DIURNA'} - ${statusText}</span>
         </td>
         <td class="py-3.5 px-4 text-center">
           <span class="inline-flex px-2 py-0.5 rounded-full text-xs ${evClass}">${evText}</span>
