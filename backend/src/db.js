@@ -475,6 +475,7 @@ export async function initDb() {
     if (isPostgres) {
       try { await run(`ALTER TABLE academic_units ADD COLUMN status TEXT DEFAULT 'ACTIVE'`); } catch (e) { if (e.code !== '42701') throw e; }
       try { await run(`ALTER TABLE academic_units ADD COLUMN jornada TEXT DEFAULT 'DIURNA'`); } catch (e) { if (e.code !== '42701') throw e; }
+      try { await run(`ALTER TABLE academic_units ADD COLUMN modalidad TEXT DEFAULT 'PRESENCIAL'`); } catch (e) { if (e.code !== '42701') throw e; }
       try { await run(`ALTER TABLE people ADD COLUMN email TEXT`); } catch (e) { if (e.code !== '42701') throw e; }
       try { await run(`ALTER TABLE attendance_sessions ADD COLUMN validation_mode TEXT DEFAULT 'IP_AND_QR'`); } catch (e) { if (e.code !== '42701') throw e; }
       console.log('Migration Phase v4: Columns verified in Postgres');
@@ -485,6 +486,9 @@ export async function initDb() {
       }
       if (!unitCols.some(col => col.name === 'jornada')) {
         await run(`ALTER TABLE academic_units ADD COLUMN jornada TEXT DEFAULT 'DIURNA'`);
+      }
+      if (!unitCols.some(col => col.name === 'modalidad')) {
+        await run(`ALTER TABLE academic_units ADD COLUMN modalidad TEXT DEFAULT 'PRESENCIAL'`);
       }
 
       const peopleCols = await query(`PRAGMA table_info(people)`);

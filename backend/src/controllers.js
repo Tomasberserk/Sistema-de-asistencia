@@ -1539,7 +1539,7 @@ export const getCoordFichas = async (req, res) => {
   try {
     const institutionId = req.user.institutionId;
     const rows = await query(
-      `SELECT au.id, au.code, au.name, au.jornada, au.status, au.active, COUNT(e.id) as learners_count
+      `SELECT au.id, au.code, au.name, au.jornada, au.modalidad, au.status, au.active, COUNT(e.id) as learners_count
        FROM academic_units au
        LEFT JOIN enrollments e ON au.id = e.unit_id AND e.active = 1
        WHERE au.institution_id = ? AND au.type = 'ficha'
@@ -1555,12 +1555,15 @@ export const getCoordFichas = async (req, res) => {
 
 export const createFicha = async (req, res) => {
   try {
-    const { code, name, jornada = 'DIURNA' } = req.body;
+    const { code, name, jornada = 'DIURNA', modalidad = 'PRESENCIAL' } = req.body;
     const institutionId = req.user.institutionId;
 
     if (!code || !name) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Código y nombre son requeridos.' } });
     }
+
+    const cleanJornada = (jornada || 'DIURNA').toString().trim().toUpperCase();
+    const cleanModalidad = (modalidad || 'PRESENCIAL').toString().trim().toUpperCase();
 
     const existing = await get(
       'SELECT id FROM academic_units WHERE code = ? AND institution_id = ?',
@@ -1572,14 +1575,14 @@ export const createFicha = async (req, res) => {
 
     const id = `unit_ficha_${code}`;
     await run(
-      `INSERT INTO academic_units (id, institution_id, code, name, type, jornada, status, active)
-       VALUES (?, ?, ?, ?, 'ficha', ?, 'ACTIVE', 1)`,
-      [id, institutionId, code, name, jornada]
+      `INSERT INTO academic_units (id, institution_id, code, name, type, jornada, modalidad, status, active)
+       VALUES (?, ?, ?, ?, 'ficha', ?, ?, 'ACTIVE', 1)`,
+      [id, institutionId, code, name, cleanJornada, cleanModalidad]
     );
 
-    await createAuditLog(req.user.id, 'CREATE_FICHA', 'ficha', id, null, { code, name, jornada });
+    await createAuditLog(req.user.id, 'CREATE_FICHA', 'ficha', id, null, { code, name, jornada: cleanJornada, modalidad: cleanModalidad });
 
-    res.status(201).json({ data: { id, code, name, jornada, status: 'ACTIVE', active: 1, learners_count: 0 } });
+    res.status(201).json({ data: { id, code, name, jornada: cleanJornada, modalidad: cleanModalidad, status: 'ACTIVE', active: 1, learners_count: 0 } });
   } catch (err) {
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -1588,7 +1591,7 @@ export const createFicha = async (req, res) => {
 export const updateFicha = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, active, jornada } = req.body;
+    const { code, name, active, jornada, modalidad } = req.body;
     const institutionId = req.user.institutionId;
 
     const unit = await get('SELECT * FROM academic_units WHERE id = ? AND institution_id = ?', [id, institutionId]);
@@ -1596,17 +1599,21 @@ export const updateFicha = async (req, res) => {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Ficha no encontrada.' } });
     }
 
-    const queryStr = 'UPDATE academic_units SET code = ?, name = ?, active = ?, jornada = ? WHERE id = ?';
+    const cleanJornada = jornada !== undefined ? jornada.toString().trim().toUpperCase() : (unit.jornada || 'DIURNA');
+    const cleanModalidad = modalidad !== undefined ? modalidad.toString().trim().toUpperCase() : (unit.modalidad || 'PRESENCIAL');
+
+    const queryStr = 'UPDATE academic_units SET code = ?, name = ?, active = ?, jornada = ?, modalidad = ? WHERE id = ?';
     const params = [
       code !== undefined ? code : unit.code,
       name !== undefined ? name : unit.name,
       active !== undefined ? Number(active) : unit.active,
-      jornada !== undefined ? jornada : (unit.jornada || 'DIURNA'),
+      cleanJornada,
+      cleanModalidad,
       id
     ];
 
     await run(queryStr, params);
-    await createAuditLog(req.user.id, 'UPDATE_FICHA', 'ficha', id, { code: unit.code, name: unit.name }, { code, name, jornada, active });
+    await createAuditLog(req.user.id, 'UPDATE_FICHA', 'ficha', id, { code: unit.code, name: unit.name }, { code, name, jornada: cleanJornada, modalidad: cleanModalidad, active });
 
     res.json({ data: { id, message: 'Ficha actualizada con éxito.' } });
   } catch (err) {
@@ -2029,7 +2036,7 @@ export const resolveBiometricException = async (req, res) => {
 export const getPublicFichas = async (req, res) => {
   try {
     const fichas = await query(`
-      SELECT id, code, name, jornada, status 
+      SELECT id, code, name, jornada, modalidad, status 
       FROM academic_units 
       WHERE active = 1 AND (status IS NULL OR status = 'ACTIVE')
       ORDER BY code ASC

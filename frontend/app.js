@@ -94,10 +94,9 @@ const btnTabLateRequests = document.getElementById('btnTabLateRequests');
 const tabContentLateRequests = document.getElementById('tabContentLateRequests');
 const lateRequestsLoading = document.getElementById('lateRequestsLoading');
 
-const btnTabBiometrics = document.getElementById('btnTabBiometrics');
-const tabContentBiometrics = document.getElementById('tabContentBiometrics');
-const biometricsLoading = document.getElementById('biometricsLoading');
-const biometricsGridBody = document.getElementById('biometricsGridBody');
+// Ficha form selectors
+const fichaJornada = document.getElementById('fichaJornada');
+const fichaModalidad = document.getElementById('fichaModalidad');
 
 // Coordinator Elements
 const coordDashboardScreen = document.getElementById('coordDashboardScreen');
@@ -554,6 +553,8 @@ document.addEventListener('DOMContentLoaded', () => {
       fichaCode.value = "";
       fichaCode.disabled = false;
       fichaName.value = "";
+      if (fichaJornada) fichaJornada.value = "DIURNA";
+      if (fichaModalidad) fichaModalidad.value = "PRESENCIAL";
       fichaActiveWrapper.classList.add('hidden');
       fichaModal.classList.remove('hidden');
     });
@@ -1172,7 +1173,7 @@ async function loadPublicFichas() {
         return;
       }
       regFichaSelect.innerHTML = '<option value="">-- Selecciona tu ficha académica --</option>' + 
-        result.data.map(f => `<option value="${f.id}">${f.code} - ${f.name} (${f.jornada || 'DIURNA'})</option>`).join('');
+        result.data.map(f => `<option value="${f.id}">${f.code} - ${f.name} (${f.jornada || 'DIURNA'} | ${f.modalidad || 'PRESENCIAL'})</option>`).join('');
     } else {
       regFichaSelect.innerHTML = '<option value="">Error cargando fichas</option>';
     }
@@ -1723,7 +1724,8 @@ function updateControllerView() {
     rejectionsCard.classList.remove('hidden');
 
     const selectedOption = selectFicha.querySelector(`option[value="${state.activeSession.unit_id}"]`);
-    activeFichaName.textContent = selectedOption ? `Ficha ${selectedOption.textContent}` : `Ficha ${state.activeSession.unit_id}`;
+    const cleanUnitId = state.activeSession.unit_id ? state.activeSession.unit_id.replace('unit_ficha_', '') : '';
+    activeFichaName.textContent = selectedOption ? `Ficha ${selectedOption.textContent}` : `Ficha ${state.activeSession.unit_code || cleanUnitId}`;
 
     // Manage status indicators
     if (state.activeSession.status === 'active') {
@@ -2014,19 +2016,16 @@ btnRefreshGrid.addEventListener('click', () => {
 });
 
 // TAB VIEW CONTROLLERS
-// TAB VIEW CONTROLLERS
 btnTabControl.addEventListener('click', () => {
   state.activeTab = 'control';
   btnTabControl.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg bg-[#39A900] text-white transition-all';
   btnTabReport.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabExcuses.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabLateRequests.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabBiometrics.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   tabContentControl.classList.remove('hidden');
   tabContentReport.classList.add('hidden');
   tabContentExcuses.classList.add('hidden');
   tabContentLateRequests.classList.add('hidden');
-  tabContentBiometrics.classList.add('hidden');
 });
 
 btnTabReport.addEventListener('click', () => {
@@ -2035,12 +2034,10 @@ btnTabReport.addEventListener('click', () => {
   btnTabControl.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabExcuses.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabLateRequests.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabBiometrics.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   tabContentControl.classList.add('hidden');
   tabContentReport.classList.remove('hidden');
   tabContentExcuses.classList.add('hidden');
   tabContentLateRequests.classList.add('hidden');
-  tabContentBiometrics.classList.add('hidden');
   fetchReportData();
 });
 
@@ -2050,12 +2047,10 @@ btnTabExcuses.addEventListener('click', () => {
   btnTabControl.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabReport.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabLateRequests.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabBiometrics.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   tabContentControl.classList.add('hidden');
   tabContentReport.classList.add('hidden');
   tabContentExcuses.classList.remove('hidden');
   tabContentLateRequests.classList.add('hidden');
-  tabContentBiometrics.classList.add('hidden');
   fetchInstructorExcuses();
 });
 
@@ -2065,28 +2060,11 @@ btnTabLateRequests.addEventListener('click', () => {
   btnTabControl.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabReport.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   btnTabExcuses.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabBiometrics.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
   tabContentControl.classList.add('hidden');
   tabContentReport.classList.add('hidden');
   tabContentExcuses.classList.add('hidden');
   tabContentLateRequests.classList.remove('hidden');
-  tabContentBiometrics.classList.add('hidden');
   fetchLateRequests();
-});
-
-btnTabBiometrics.addEventListener('click', () => {
-  state.activeTab = 'biometrics';
-  btnTabBiometrics.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg bg-[#39A900] text-white transition-all';
-  btnTabControl.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabReport.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabExcuses.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  btnTabLateRequests.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
-  tabContentControl.classList.add('hidden');
-  tabContentReport.classList.add('hidden');
-  tabContentExcuses.classList.add('hidden');
-  tabContentLateRequests.classList.add('hidden');
-  tabContentBiometrics.classList.remove('hidden');
-  fetchPendingBiometrics();
 });
 
 // Report View Fetch
@@ -2939,116 +2917,7 @@ window.resolveLateRequest = async (id, status) => {
   }
 };
 
-// --- BIOMETRICS EXCEPTIONS LOGIC ---
-async function fetchPendingBiometrics() {
-  if (!state.activeSession) {
-    biometricsGridBody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-500">Inicie o seleccione una sesión de clase para revisar excepciones biométricas.</td></tr>`;
-    return;
-  }
-  biometricsLoading.classList.remove('hidden');
-  biometricsGridBody.innerHTML = '';
-  try {
-    const res = await fetch(`${state.apiUrl}/api/sessions/${state.activeSession.id}/pending-biometrics`, {
-      headers: { 'Authorization': `Bearer ${state.token}` }
-    });
-    if (handleAuthError(res)) return;
-
-    const result = await res.json();
-    if (res.ok) {
-      renderBiometrics(result.data);
-    } else {
-      console.error('Error fetching biometrics:', result.error.message);
-      biometricsGridBody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-400">Error al cargar excepciones.</td></tr>`;
-    }
-  } catch (err) {
-    console.error('Error fetching biometrics:', err);
-    biometricsGridBody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-400">Error de conexión.</td></tr>`;
-  } finally {
-    biometricsLoading.classList.add('hidden');
-  }
-}
-
-function renderBiometrics(records) {
-  biometricsGridBody.innerHTML = '';
-
-  if (!records || records.length === 0) {
-    biometricsGridBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="text-center py-8 text-slate-500">No hay excepciones biométricas pendientes.</td>
-      </tr>
-    `;
-    return;
-  }
-
-  records.forEach(r => {
-    const photoRefHtml = r.photo_reference 
-      ? `<img src="${r.photo_reference}" class="w-12 h-12 object-cover rounded-lg border border-slate-700 mx-auto cursor-pointer" onclick="viewPhotoInModal('${r.photo_reference}', 'Foto de Registro - ${r.nombre}')" title="Ver en tamaño completo">`
-      : '<span class="text-xs text-slate-500">Sin foto</span>';
-
-    const photoEvidenceHtml = r.photo_evidence 
-      ? `<img src="${r.photo_evidence}" class="w-12 h-12 object-cover rounded-lg border border-slate-700 mx-auto cursor-pointer" onclick="viewPhotoInModal('${r.photo_evidence}', 'Intento de Captura - ${r.nombre}')" title="Ver en tamaño completo">`
-      : '<span class="text-xs text-slate-500">Sin foto</span>';
-
-    const similarityVal = r.biometric_match_score !== null ? Math.max(0, Math.min(100, Math.round((1 - r.biometric_match_score) * 100))) : 0;
-    const matchHtml = `<div class="text-center">
-      <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${similarityVal >= 65 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}">${similarityVal}%</span>
-      <span class="block text-[9px] text-slate-500 mt-0.5">Mínimo: 65%</span>
-    </div>`;
-
-    const sentAt = r.created_at ? new Date(r.created_at).toLocaleString('es-CO') : '-';
-
-    const actionsCol = `
-      <div class="flex items-center justify-center gap-2">
-        <button onclick="resolveBiometric('${r.record_id}', 'approved')" class="text-xs bg-[#39A900]/15 hover:bg-[#39A900]/25 border border-[#39A900]/20 text-[#39A900] px-2.5 py-1.5 rounded-lg transition-all font-semibold">
-          Aprobar
-        </button>
-        <button onclick="resolveBiometric('${r.record_id}', 'rejected')" class="text-xs bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 px-2.5 py-1.5 rounded-lg transition-all font-semibold">
-          Rechazar
-        </button>
-      </div>
-    `;
-
-    biometricsGridBody.innerHTML += `
-      <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
-        <td class="py-3 px-4 font-medium text-slate-200">${r.nombre || '-'}</td>
-        <td class="py-3 px-4 text-slate-400 font-mono text-xs">${r.documento || '-'}</td>
-        <td class="py-3 px-4 text-center">${photoRefHtml}</td>
-        <td class="py-3 px-4 text-center">${photoEvidenceHtml}</td>
-        <td class="py-3 px-4">${matchHtml}</td>
-        <td class="py-3 px-4 font-mono text-xs">${sentAt}</td>
-        <td class="py-3 px-4 text-center">${actionsCol}</td>
-      </tr>
-    `;
-  });
-}
-
-window.resolveBiometric = async (recordId, status) => {
-  const confirmMsg = status === 'approved'
-    ? '¿Aprobar esta asistencia de aprendiz confirmando que el rostro coincide visualmente?'
-    : '¿Rechazar esta asistencia por falta de coincidencia biométrica/visual?';
-
-  if (!confirm(confirmMsg)) return;
-
-  try {
-    const res = await fetch(`${state.apiUrl}/api/attendance/resolve-biometric/${recordId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${state.token}`
-      },
-      body: JSON.stringify({ status })
-    });
-    const result = await res.json();
-    if (res.ok) {
-      alert(result.data.message);
-      fetchPendingBiometrics();
-    } else {
-      alert(`Error: ${result.error.message}`);
-    }
-  } catch (err) {
-    alert('Error al resolver la excepción biométrica.');
-  }
-};
+// --- BIOMETRICS EXCEPTIONS (DEPRECATED & REMOVED PER USER REQUIREMENT) ---
 
 window.viewPhotoInModal = (src, title) => {
   let modal = document.getElementById('photo-preview-modal');
@@ -3280,7 +3149,7 @@ async function fetchCoordFichas() {
 function renderCoordFichas(fichas) {
   coordFichasGridBody.innerHTML = '';
   if (!fichas || fichas.length === 0) {
-    coordFichasGridBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-500">No hay fichas registradas.</td></tr>';
+    coordFichasGridBody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500">No hay fichas registradas.</td></tr>';
     return;
   }
 
@@ -3291,6 +3160,22 @@ function renderCoordFichas(fichas) {
 
     if (f.status === 'PENDING_DELETION') {
       statusText = '<span class="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-orange-500/10 text-orange-400 border border-orange-500/20">BAJA PENDIENTE</span>';
+    }
+
+    let jornadaBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">Diurna</span>';
+    if (f.jornada === 'TARDE') {
+      jornadaBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Tarde</span>';
+    } else if (f.jornada === 'NOCTURNA') {
+      jornadaBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">Nocturna</span>';
+    } else if (f.jornada === 'MIXTA') {
+      jornadaBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Mixta</span>';
+    }
+
+    let modalidadBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Presencial</span>';
+    if (f.modalidad === 'VIRTUAL') {
+      modalidadBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Virtual</span>';
+    } else if (f.modalidad === 'MIXTA') {
+      modalidadBadge = '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20">Híbrida</span>';
     }
 
     const toggleText = f.active ? 'Desactivar' : 'Activar';
@@ -3305,11 +3190,13 @@ function renderCoordFichas(fichas) {
       <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
         <td class="py-3 px-4 font-mono font-semibold text-[#39A900]">${f.code}</td>
         <td class="py-3 px-4 text-slate-200">${f.name}</td>
+        <td class="py-3 px-4 text-center">${jornadaBadge}</td>
+        <td class="py-3 px-4 text-center">${modalidadBadge}</td>
         <td class="py-3 px-4 text-center font-semibold text-slate-400">${f.learners_count || 0}</td>
         <td class="py-3 px-4">${statusText}</td>
         <td class="py-3 px-4 text-right">
           <div class="flex justify-end gap-2">
-            <button onclick="editFicha('${f.id}', '${f.code}', '${f.name}', ${f.active})" class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 px-2.5 py-1 rounded-md transition-all">
+            <button onclick="editFicha('${f.id}', '${f.code}', '${f.name}', ${f.active}, '${f.jornada || 'DIURNA'}', '${f.modalidad || 'PRESENCIAL'}')" class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 px-2.5 py-1 rounded-md transition-all">
               Editar
             </button>
             <button onclick="toggleFichaActive('${f.id}', '${f.name}', ${f.active})" class="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 text-red-400 px-2.5 py-1 rounded-md transition-all">
@@ -3328,6 +3215,8 @@ async function handleFichaSubmit(e) {
   const id = fichaEditId.value;
   const code = fichaCode.value.trim();
   const name = fichaName.value.trim();
+  const jornada = fichaJornada ? fichaJornada.value : 'DIURNA';
+  const modalidad = fichaModalidad ? fichaModalidad.value : 'PRESENCIAL';
   const active = fichaActive.checked;
 
   const url = id 
@@ -3335,7 +3224,7 @@ async function handleFichaSubmit(e) {
     : `${state.apiUrl}/api/coord/fichas`;
 
   const method = id ? 'PUT' : 'POST';
-  const bodyData = { code, name };
+  const bodyData = { code, name, jornada, modalidad };
   if (id) bodyData.active = active;
 
   try {
@@ -3353,19 +3242,21 @@ async function handleFichaSubmit(e) {
       fichaModal.classList.add('hidden');
       fetchCoordFichas();
     } else {
-      alert(`Error: ${result.error.message}`);
+      alert(`Error: ${result.error?.message || 'No se pudo guardar la ficha'}`);
     }
   } catch (err) {
     alert('Error al guardar la ficha.');
   }
 }
 
-window.editFicha = (id, code, name, active) => {
+window.editFicha = (id, code, name, active, jornada, modalidad) => {
   fichaModalTitle.textContent = "Editar Ficha";
   fichaEditId.value = id;
   fichaCode.value = code;
   fichaCode.disabled = false; // Permitir cambiar el código en edición
   fichaName.value = name;
+  if (fichaJornada) fichaJornada.value = jornada || 'DIURNA';
+  if (fichaModalidad) fichaModalidad.value = modalidad || 'PRESENCIAL';
   fichaActive.checked = active === 1 || active === true;
   fichaActiveWrapper.classList.remove('hidden');
   fichaModal.classList.remove('hidden');
