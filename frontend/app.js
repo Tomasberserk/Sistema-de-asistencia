@@ -280,10 +280,15 @@ function startQrScanner() {
         let token = decodedText.trim();
         try {
           const url = new URL(decodedText);
-          const pathParts = url.pathname.split('/');
-          const lastPart = pathParts[pathParts.length - 1];
-          if (lastPart && (url.pathname.includes('/attendance/') || url.pathname.includes('/attendance'))) {
-            token = lastPart;
+          const tokenParam = url.searchParams.get('token');
+          if (tokenParam) {
+            token = tokenParam;
+          } else {
+            const pathParts = url.pathname.split('/');
+            const lastPart = pathParts[pathParts.length - 1];
+            if (lastPart && (url.pathname.includes('/attendance/') || url.pathname.includes('/attendance'))) {
+              token = lastPart;
+            }
           }
         } catch (e) {}
 
@@ -291,7 +296,13 @@ function startQrScanner() {
           showDashboard();
           submitStudentCheckin(token);
         } else {
-          window.location.href = `/attendance/${token}`;
+          sessionStorage.setItem('pending_qr_token', token.trim().toUpperCase());
+          showStudentLogin();
+          const fb = document.getElementById('studentLoginFeedback');
+          if (fb) {
+            fb.textContent = `Código de clase '${token}' detectado. Inicia sesión como aprendiz para confirmar tu asistencia.`;
+            fb.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20 block';
+          }
         }
       },
       () => {}
@@ -389,7 +400,13 @@ document.addEventListener('DOMContentLoaded', () => {
         showDashboard();
         await submitStudentCheckin(code);
       } else {
-        window.location.href = `/attendance/${code}`;
+        sessionStorage.setItem('pending_qr_token', code);
+        showStudentLogin();
+        const fb = document.getElementById('studentLoginFeedback');
+        if (fb) {
+          fb.textContent = `Código de clase '${code}' detectado. Inicia sesión como aprendiz para registrar tu asistencia.`;
+          fb.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20 block';
+        }
       }
     });
   }
@@ -398,6 +415,36 @@ document.addEventListener('DOMContentLoaded', () => {
   if (scannerManualCode) {
     scannerManualCode.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnScannerManualGo?.click();
+    });
+  }
+
+  // Manual code from portal home landing screen
+  const btnPortalManualGo = document.getElementById('btnPortalManualGo');
+  const portalManualCode = document.getElementById('portalManualCode');
+  if (btnPortalManualGo) {
+    btnPortalManualGo.addEventListener('click', async () => {
+      const code = portalManualCode ? portalManualCode.value.trim().toUpperCase() : '';
+      if (code.length < 6) {
+        alert('El código debe tener al menos 6 caracteres.');
+        return;
+      }
+      if (state.token && state.person) {
+        showDashboard();
+        await submitStudentCheckin(code);
+      } else {
+        sessionStorage.setItem('pending_qr_token', code);
+        showStudentLogin();
+        const fb = document.getElementById('studentLoginFeedback');
+        if (fb) {
+          fb.textContent = `Código de clase '${code}' detectado. Inicia sesión para registrar tu asistencia.`;
+          fb.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20 block';
+        }
+      }
+    });
+  }
+  if (portalManualCode) {
+    portalManualCode.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnPortalManualGo?.click();
     });
   }
 
@@ -866,11 +913,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Extract token from URL if present (?token=XYZ)
+  const urlParams = new URLSearchParams(window.location.search);
+  const tokenFromUrl = urlParams.get('token');
+  if (tokenFromUrl) {
+    sessionStorage.setItem('pending_qr_token', tokenFromUrl.trim().toUpperCase());
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   // Check login state
   if (state.token && state.person) {
     showDashboard();
   } else {
-    showPortal();
+    const pending = sessionStorage.getItem('pending_qr_token');
+    if (pending) {
+      showStudentLogin();
+      const fb = document.getElementById('studentLoginFeedback');
+      if (fb) {
+        fb.textContent = `🟢 Código de clase '${pending}' detectado. Inicia sesión como aprendiz para registrar tu asistencia.`;
+        fb.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20 block';
+      }
+    } else {
+      showPortal();
+    }
   }
 });
 
@@ -1013,6 +1078,14 @@ function showDashboard() {
     switchStudentTab('active');
     loadStudentActiveSession();
     fetchStudentHistory();
+
+    const pendingToken = sessionStorage.getItem('pending_qr_token');
+    if (pendingToken) {
+      sessionStorage.removeItem('pending_qr_token');
+      setTimeout(() => {
+        submitStudentCheckin(pendingToken);
+      }, 300);
+    }
   }
 }
 
@@ -1362,7 +1435,13 @@ window.promptManualCode = async (sessionId) => {
   if (state.token && state.person) {
     await submitStudentCheckin(cleanCode);
   } else {
-    window.location.href = `/attendance/${cleanCode}`;
+    sessionStorage.setItem('pending_qr_token', cleanCode);
+    showStudentLogin();
+    const fb = document.getElementById('studentLoginFeedback');
+    if (fb) {
+      fb.textContent = `Código de clase '${cleanCode}' detectado. Inicia sesión como aprendiz para registrar tu asistencia.`;
+      fb.className = 'mb-4 p-3 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20 block';
+    }
   }
 };
 
@@ -1659,9 +1738,10 @@ async function rotateQrCode() {
     const res = await fetch(`${state.apiUrl}/api/sessions/${state.activeSession.id}/qr-token`, {
       headers: { 'Authorization': `Bearer ${state.token}` }
     });
-    const data = await res.json();
     if (res.ok) {
-      const qrUrl = `${state.apiUrl}/attendance/${data.qrToken}`;
+      const data = await res.json();
+      const baseUrl = state.apiUrl && state.apiUrl.startsWith('http') ? state.apiUrl : window.location.origin;
+      const qrUrl = `${baseUrl}/?token=${data.qrToken}`;
       
       // Update manual code
       const manualCode = data.qrToken.substring(0, 6).toUpperCase();
