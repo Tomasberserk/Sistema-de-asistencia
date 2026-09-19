@@ -246,6 +246,88 @@ async function checkApiHealth() {
 // HTML5 QR Scanner Instance
 let html5QrCode = null;
 
+function startQrScanner() {
+  portalScreen?.classList.add('hidden');
+  loginScreen?.classList.add('hidden');
+  studentLoginScreen?.classList.add('hidden');
+  dashboardScreen?.classList.add('hidden');
+  studentDashboardScreen?.classList.add('hidden');
+  coordDashboardScreen?.classList.add('hidden');
+  userInfo?.classList.add('hidden');
+  scannerScreen?.classList.remove('hidden');
+
+  const feedback = document.getElementById('scannerFeedback');
+  if (feedback) feedback.classList.add('hidden');
+
+  if (typeof Html5Qrcode !== 'undefined') {
+    if (!html5QrCode) {
+      html5QrCode = new Html5Qrcode("reader");
+    }
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        stopQrScanner();
+        try {
+          const url = new URL(decodedText);
+          const pathParts = url.pathname.split('/');
+          const token = pathParts[pathParts.length - 1];
+          if (token && (url.pathname.includes('/attendance/') || url.pathname.includes('/attendance'))) {
+            window.location.href = `/attendance/${token}`;
+          } else {
+            if (feedback) {
+              feedback.textContent = "QR escaneado no es un código de asistencia válido.";
+              feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+              feedback.classList.remove('hidden');
+            }
+          }
+        } catch (err) {
+          if (decodedText.length >= 6) {
+            window.location.href = `/attendance/${decodedText}`;
+          } else {
+            if (feedback) {
+              feedback.textContent = "Código QR inválido.";
+              feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+              feedback.classList.remove('hidden');
+            }
+          }
+        }
+      },
+      () => {}
+    ).catch(err => {
+      if (feedback) {
+        feedback.textContent = "No se pudo iniciar la cámara: " + (err?.message || err);
+        feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
+        feedback.classList.remove('hidden');
+      }
+    });
+  } else if (feedback) {
+    feedback.textContent = "Lector de QR en carga...";
+    feedback.classList.remove('hidden');
+  }
+}
+
+function stopQrScanner() {
+  if (html5QrCode) {
+    try {
+      if (html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+          html5QrCode = null;
+        }).catch(() => { html5QrCode = null; });
+      } else {
+        html5QrCode = null;
+      }
+    } catch (e) {
+      html5QrCode = null;
+    }
+  }
+}
+
+window.startQrScanner = startQrScanner;
+window.stopQrScanner = stopQrScanner;
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
   checkApiHealth();
