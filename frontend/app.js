@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Manual code from scanner screen
   const btnScannerManualGo = document.getElementById('btnScannerManualGo');
   if (btnScannerManualGo) {
-    btnScannerManualGo.addEventListener('click', () => {
+    btnScannerManualGo.addEventListener('click', async () => {
       const code = document.getElementById('scannerManualCode').value.trim().toUpperCase();
       if (code.length < 6) {
         const fb = document.getElementById('scannerFeedback');
