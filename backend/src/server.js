@@ -584,8 +584,8 @@ app.get('/attendance/:token', (req, res) => {
   let studentToken = '';
   let studentProfile = null;
   try {
-    studentToken = localStorage.getItem('student_token') || '';
-    studentProfile = JSON.parse(localStorage.getItem('student_profile') || 'null');
+    studentToken = localStorage.getItem('token') || localStorage.getItem('student_token') || '';
+    studentProfile = JSON.parse(localStorage.getItem('person') || localStorage.getItem('student_profile') || 'null');
   } catch (e) {
     console.warn('localStorage is restricted or unavailable:', e);
   }

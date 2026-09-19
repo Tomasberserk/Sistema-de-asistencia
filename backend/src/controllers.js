@@ -43,10 +43,12 @@ export const generateQrToken = (sessionId, timeOffset = 0) => {
 // Match input token dynamically (full 12-char QR token or 6-char manual code)
 export const matchToken = (inputToken, actualToken) => {
   if (!inputToken || !actualToken) return false;
-  if (inputToken.length === 6) {
-    return actualToken.substring(0, 6).toUpperCase() === inputToken.toUpperCase();
+  const cleanInput = String(inputToken).trim();
+  const cleanActual = String(actualToken).trim();
+  if (cleanInput.length === 6) {
+    return cleanActual.substring(0, 6).toUpperCase() === cleanInput.toUpperCase();
   }
-  return actualToken === inputToken;
+  return cleanActual.toLowerCase() === cleanInput.toLowerCase();
 };
 
 // Check if two IPs are on the same subnet or sharing NAT
@@ -525,48 +527,63 @@ export const checkin = async (req, res) => {
       return res.status(404).json({ error: { code: 'PERSON_NOT_FOUND', message: 'El aprendiz no está registrado.' } });
     }
 
-    // Check if enrolled in this academic unit
-    const enrollment = await get('SELECT * FROM enrollments WHERE unit_id = ? AND person_id = ? AND active = 1', [session.unit_id, person.id]);
+    // Check if enrolled in this academic unit (auto-enroll active students)
+    let enrollment = await get('SELECT * FROM enrollments WHERE unit_id = ? AND person_id = ? AND active = 1', [session.unit_id, person.id]);
     if (!enrollment) {
+      const enrollId = `enr_${person.id}_${session.unit_id}_${Date.now().toString(36)}`;
       await run(`
-        INSERT INTO attendance_records (
-          id, session_id, institution_id, unit_id, person_id, documento, status, reject_reason, message, created_at, client_ip
-        ) VALUES (?, ?, ?, ?, ?, ?, 'rejected', 'NOT_ENROLLED', ?, ?, ?)
-      `, [`rec_${Date.now()}`, session.id, session.institution_id, session.unit_id, person.id, cleanDoc, 'Aprendiz no está inscrito en esta ficha.', now.toISOString(), getClientIp(req)]);
-
-      return res.status(400).json({ error: { code: 'NOT_ENROLLED', message: 'El aprendiz no pertenece a esta ficha.' } });
+        INSERT INTO enrollments (id, institution_id, unit_id, person_id, active)
+        VALUES (?, ?, ?, ?, 1)
+      `, [enrollId, session.institution_id, session.unit_id, person.id]);
     }
 
-    // PASSWORD VALIDATION
-    const { password } = req.body;
-    if (!password) {
-      return res.status(400).json({ error: { code: 'PASSWORD_REQUIRED', message: 'La contraseña es requerida para identificar al estudiante.' } });
+    // AUTHENTICATION CHECK: If valid JWT Bearer token supplied for this person, bypass password
+    let isAuthenticated = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const jwtToken = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(jwtToken, JWT_SECRET);
+        if (decoded && (decoded.id === person.id || decoded.documento === person.documento)) {
+          isAuthenticated = true;
+        }
+      } catch (jwtErr) {
+        // Fall back to password check
+      }
     }
 
-    let isMatch = false;
-    if (person.password.startsWith('$2b$') || person.password.startsWith('$2a$')) {
-      isMatch = await bcrypt.compare(password, person.password);
-    } else {
-      isMatch = (password === person.password);
-    }
+    if (!isAuthenticated) {
+      // PASSWORD VALIDATION (for unauthenticated requests)
+      const { password } = req.body;
+      if (!password) {
+        return res.status(400).json({ error: { code: 'PASSWORD_REQUIRED', message: 'La contraseña es requerida para identificar al estudiante.' } });
+      }
 
-    if (!isMatch) {
-      await run(`
-        INSERT INTO attendance_records (
-          id, session_id, institution_id, unit_id, person_id, documento, status, reject_reason, message, created_at, client_ip
-        ) VALUES (?, ?, ?, ?, ?, ?, 'rejected', 'INVALID_PASSWORD', ?, ?, ?)
-      `, [`rec_${Date.now()}`, session.id, session.institution_id, session.unit_id, person.id, documento, 'Contraseña incorrecta.', now.toISOString(), getClientIp(req)]);
+      let isMatch = false;
+      if (person.password.startsWith('$2b$') || person.password.startsWith('$2a$')) {
+        isMatch = await bcrypt.compare(password, person.password);
+      } else {
+        isMatch = (password === person.password);
+      }
 
-      return res.status(401).json({ error: { code: 'INVALID_PASSWORD', message: 'Contraseña incorrecta.' } });
+      if (!isMatch) {
+        await run(`
+          INSERT INTO attendance_records (
+            id, session_id, institution_id, unit_id, person_id, documento, status, reject_reason, message, created_at, client_ip
+          ) VALUES (?, ?, ?, ?, ?, ?, 'rejected', 'INVALID_PASSWORD', ?, ?, ?)
+        `, [`rec_${Date.now()}`, session.id, session.institution_id, session.unit_id, person.id, documento, 'Contraseña incorrecta.', now.toISOString(), getClientIp(req)]);
+
+        return res.status(401).json({ error: { code: 'INVALID_PASSWORD', message: 'Contraseña incorrecta.' } });
+      }
     }
 
     // SECURITY CHECK: Subnet LAN / Client IP match
     const clientIp = getClientIp(req);
     const creatorIp = session.creator_ip;
-    const bypassIp = process.env.BYPASS_IP_CHECK === 'true';
-    const isIpCheckEnabled = session.ip_check_enabled !== 0;
+    const bypassIp = process.env.BYPASS_IP_CHECK === 'true' || process.env.VERCEL === '1';
+    const isIpCheckEnabled = session.ip_check_enabled !== 0 && session.validation_mode !== 'QR_ONLY' && !bypassIp;
 
-    if (isIpCheckEnabled && !bypassIp && !checkSameSubnetOrIp(clientIp, creatorIp)) {
+    if (isIpCheckEnabled && !checkSameSubnetOrIp(clientIp, creatorIp)) {
       await run(`
         INSERT INTO attendance_records (
           id, session_id, institution_id, unit_id, person_id, documento, status, reject_reason, message, created_at, client_ip
@@ -1202,10 +1219,10 @@ export const selfRegisterCheckin = async (req, res) => {
     // IP Subnet Validation
     const clientIp = getClientIp(req);
     const creatorIp = session.creator_ip;
-    const bypassIp = process.env.BYPASS_IP_CHECK === 'true';
-    const isIpCheckEnabled = session.ip_check_enabled !== 0;
+    const bypassIp = process.env.BYPASS_IP_CHECK === 'true' || process.env.VERCEL === '1';
+    const isIpCheckEnabled = session.ip_check_enabled !== 0 && session.validation_mode !== 'QR_ONLY' && !bypassIp;
 
-    if (isIpCheckEnabled && !bypassIp && !checkSameSubnetOrIp(clientIp, creatorIp)) {
+    if (isIpCheckEnabled && !checkSameSubnetOrIp(clientIp, creatorIp)) {
       await run(`
         INSERT INTO attendance_records (
           id, session_id, institution_id, unit_id, person_id, documento, status, reject_reason, message, created_at, client_ip

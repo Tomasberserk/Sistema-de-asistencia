@@ -270,29 +270,21 @@ function startQrScanner() {
       config,
       (decodedText) => {
         stopQrScanner();
+        let token = decodedText.trim();
         try {
           const url = new URL(decodedText);
           const pathParts = url.pathname.split('/');
-          const token = pathParts[pathParts.length - 1];
-          if (token && (url.pathname.includes('/attendance/') || url.pathname.includes('/attendance'))) {
-            window.location.href = `/attendance/${token}`;
-          } else {
-            if (feedback) {
-              feedback.textContent = "QR escaneado no es un código de asistencia válido.";
-              feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
-              feedback.classList.remove('hidden');
-            }
+          const lastPart = pathParts[pathParts.length - 1];
+          if (lastPart && (url.pathname.includes('/attendance/') || url.pathname.includes('/attendance'))) {
+            token = lastPart;
           }
-        } catch (err) {
-          if (decodedText.length >= 6) {
-            window.location.href = `/attendance/${decodedText}`;
-          } else {
-            if (feedback) {
-              feedback.textContent = "Código QR inválido.";
-              feedback.className = "p-3 rounded-xl text-center text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20";
-              feedback.classList.remove('hidden');
-            }
-          }
+        } catch (e) {}
+
+        if (state.token && state.person) {
+          showDashboard();
+          submitStudentCheckin(token);
+        } else {
+          window.location.href = `/attendance/${token}`;
         }
       },
       () => {}
@@ -1100,7 +1092,47 @@ async function loadStudentActiveSession() {
   }
 }
 
-window.promptManualCode = (sessionId) => {
+async function submitStudentCheckin(token) {
+  if (!token) return;
+  const cleanToken = token.trim();
+
+  if (studentActiveSessionContent) {
+    studentActiveSessionContent.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+        <svg class="w-8 h-8 animate-spin text-[#39A900] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.2"/></svg>
+        <p class="text-sm font-medium">Validando asistencia con el aula formativa...</p>
+      </div>
+    `;
+  }
+
+  try {
+    const res = await fetch(`${state.apiUrl}/public/attendance/${cleanToken}/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.token}`
+      },
+      body: JSON.stringify({
+        documento: state.person.documento,
+        qrToken: cleanToken
+      })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      alert('¡Asistencia registrada exitosamente!');
+      await loadStudentActiveSession();
+      await fetchStudentHistory();
+    } else {
+      alert(`Error al registrar asistencia: ${result.error?.message || 'Código inválido o sesión vencida.'}`);
+      await loadStudentActiveSession();
+    }
+  } catch (err) {
+    alert('Error de conexión al registrar la asistencia.');
+    await loadStudentActiveSession();
+  }
+}
+
+window.promptManualCode = async (sessionId) => {
   const code = prompt('Ingresa el código alfanumérico de 6 caracteres visible en la pantalla del docente:');
   if (!code) return;
   const cleanCode = code.trim().toUpperCase();
@@ -1108,7 +1140,12 @@ window.promptManualCode = (sessionId) => {
     alert('El código debe tener al menos 6 caracteres.');
     return;
   }
-  window.location.href = `/attendance/${cleanCode}`;
+
+  if (state.token && state.person) {
+    await submitStudentCheckin(cleanCode);
+  } else {
+    window.location.href = `/attendance/${cleanCode}`;
+  }
 };
 
 
