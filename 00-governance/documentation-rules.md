@@ -1,9 +1,8 @@
 # 00 — Documentation Rules
 
-> [!NOTE] INSTRUCTIONS
+> [!NOTE] GOVERNANCE POLICY
 > This document defines when a document in this repository is considered done.
-> It is the only document you should not delete the instructions from — it governs
-> the others. Adapt the thresholds to your team, but keep them explicit.
+> It establishes the documentation standards and lifecycle for the whole repository.
 
 ## Document lifecycle
 
