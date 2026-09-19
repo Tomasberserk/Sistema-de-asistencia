@@ -1,5 +1,4 @@
 import pg from 'pg';
-import sqlite3 from 'sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
@@ -26,13 +25,19 @@ if (isPostgres) {
     ? '/tmp/database.sqlite' 
     : path.resolve(__dirname, '../database.sqlite');
   
-  sqliteDb = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-      console.error('Error opening SQLite database:', err.message);
-    } else {
-      console.log('Database type: SQLite (Local) at:', dbPath);
-    }
-  });
+  try {
+    const sqlite3Module = await import('sqlite3');
+    const sqlite3 = sqlite3Module.default || sqlite3Module;
+    sqliteDb = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        console.error('Error opening SQLite database:', err.message);
+      } else {
+        console.log('Database type: SQLite (Local) at:', dbPath);
+      }
+    });
+  } catch (err) {
+    console.error('Failed to load SQLite module:', err.message);
+  }
 }
 
 // ── Placeholder converter: SQLite ? → PostgreSQL $1, $2, ... ─────────────────
@@ -226,15 +231,27 @@ export async function initDb() {
           SELECT MIN(rowid) FROM attendance_records GROUP BY session_id, person_id
         )
       `);
+    } else {
+      await run(`
+        DELETE FROM attendance_records a
+        USING attendance_records b
+        WHERE a.ctid < b.ctid
+          AND a.session_id = b.session_id
+          AND a.person_id = b.person_id
+      `);
     }
   } catch (e) {
-    // Ignore cleanup error if table empty
+    // Ignore cleanup error if table empty or dialect difference
   }
 
-  await run(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_session_person 
-    ON attendance_records(session_id, person_id)
-  `);
+  try {
+    await run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_session_person 
+      ON attendance_records(session_id, person_id)
+    `);
+  } catch (idxErr) {
+    console.warn('Notice: unique index on attendance_records:', idxErr.message);
+  }
 
   await run(`
     CREATE TABLE IF NOT EXISTS excuses (
@@ -510,7 +527,11 @@ export async function initDb() {
         ['2026-12-25', 'Navidad']
       ];
       for (const [d, n] of holidaysList) {
-        await run(`INSERT OR IGNORE INTO holidays (date, name, active) VALUES (?, ?, 1)`, [d, n]);
+        if (isPostgres) {
+          await run(`INSERT INTO holidays (date, name, active) VALUES (?, ?, 1) ON CONFLICT (date) DO NOTHING`, [d, n]);
+        } else {
+          await run(`INSERT OR IGNORE INTO holidays (date, name, active) VALUES (?, ?, 1)`, [d, n]);
+        }
       }
       console.log('Database Init: Seeded Colombian holidays successfully.');
     }

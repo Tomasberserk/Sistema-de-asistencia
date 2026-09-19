@@ -4,6 +4,7 @@ import cors from 'cors';
 import { initDb } from './db.js';
 import { login, studentLogin, authenticate, requireRole, changePassword, forgotPassword, resetPassword } from './auth.js';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import {
   getInstitutions,
@@ -64,7 +65,23 @@ const PORT = process.env.PORT || 4000;
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.resolve(__dirname, '../../frontend')));
+
+const frontendCandidates = [
+  path.resolve(__dirname, '../../frontend'),
+  path.resolve(process.cwd(), 'frontend'),
+  path.resolve(__dirname, '../frontend'),
+  path.resolve(__dirname, 'frontend')
+];
+const frontendPath = frontendCandidates.find(p => fs.existsSync(p)) || frontendCandidates[0];
+app.use(express.static(frontendPath));
+
+app.get('/', (req, res, next) => {
+  const indexPath = path.join(frontendPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  next();
+});
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.status(200).send('ok'));
@@ -1441,7 +1458,12 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-await initDb();
+try {
+  await initDb();
+  console.log('Database initialized successfully');
+} catch (err) {
+  console.error('Database initialization warning (non-fatal for server startup):', err);
+}
 
 const isRunningTests = process.env.NODE_ENV === 'test' || process.argv.some(a => a.includes('test'));
 if (process.env.VERCEL !== '1' && !isRunningTests) {
