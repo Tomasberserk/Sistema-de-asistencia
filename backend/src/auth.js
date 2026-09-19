@@ -269,6 +269,49 @@ export const resetPassword = async (req, res) => {
   }
 };
 
+// Verify Current Password Endpoint (Step 1 identity gate before password change)
+export const verifyPassword = async (req, res) => {
+  try {
+    const { currentPassword } = req.body;
+    const userId = req.user?.id;
+
+    if (!currentPassword) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Debes ingresar tu contraseña actual.' }
+      });
+    }
+
+    const person = await get('SELECT * FROM people WHERE id = ?', [userId]);
+    if (!person) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Usuario no encontrado.' }
+      });
+    }
+
+    let isMatch = false;
+    if (person.password && (person.password.startsWith('$2b$') || person.password.startsWith('$2a$'))) {
+      isMatch = await bcrypt.compare(currentPassword, person.password);
+    } else {
+      isMatch = (currentPassword === person.password);
+    }
+
+    if (!isMatch) {
+      return res.status(401).json({
+        error: { code: 'INVALID_CREDENTIALS', message: 'La contraseña actual ingresada es incorrecta.' }
+      });
+    }
+
+    return res.status(200).json({
+      data: { verified: true, message: 'Identidad confirmada exitosamente.' }
+    });
+  } catch (err) {
+    console.error('Verify password error:', err);
+    return res.status(500).json({
+      error: { code: 'SERVER_ERROR', message: 'Error interno al verificar la contraseña.' }
+    });
+  }
+};
+
 // Change Password Endpoint (Mandatory first-time or user request)
 export const changePassword = async (req, res) => {
   try {

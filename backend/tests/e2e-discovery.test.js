@@ -163,6 +163,30 @@ export async function runDiscoveryFlowTests() {
   assert(hasApproveLog, 'Debe existir registro inmutable de la aprobación de baja');
   console.log('  ✓ GET /api/coord/audit-logs contiene trazabilidad de acciones críticas');
 
+  // 7.5. Verificación de Contraseña Actual (Gate de Identidad)
+  const resVerifyWrong = await fetch(`${baseUrl}/api/auth/verify-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${studentToken}`
+    },
+    body: JSON.stringify({ currentPassword: 'clave-incorrecta' })
+  });
+  assert.strictEqual(resVerifyWrong.status, 401, 'Clave actual incorrecta debe rechazar con 401');
+
+  const resVerifyOk = await fetch(`${baseUrl}/api/auth/verify-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${studentToken}`
+    },
+    body: JSON.stringify({ currentPassword: 'NewPassword2026!' })
+  });
+  assert.strictEqual(resVerifyOk.status, 200, 'Clave actual correcta debe responder 200');
+  const verifyOkData = await resVerifyOk.json();
+  assert.strictEqual(verifyOkData.data?.verified, true, 'Debe retornar verified: true');
+  console.log('  ✓ POST /api/auth/verify-password valida identidad previa al cambio de clave');
+
   // 8. Habeas Data y Supresión de Cuenta (Fase 4)
   const resHabeas = await fetch(`${baseUrl}/api/student/delete-account`, {
     method: 'DELETE',

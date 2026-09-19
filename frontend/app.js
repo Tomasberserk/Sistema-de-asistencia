@@ -190,6 +190,11 @@ const btnOpenNewExcuseModal = document.getElementById('btnOpenNewExcuseModal');
 const studentChangePassForm = document.getElementById('studentChangePassForm');
 const currentPassStudent = document.getElementById('currentPassStudent');
 const newPassStudent = document.getElementById('newPassStudent');
+const newPassConfirmStudent = document.getElementById('newPassConfirmStudent');
+const btnVerifyCurrentPass = document.getElementById('btnVerifyCurrentPass');
+const btnCancelChangePass = document.getElementById('btnCancelChangePass');
+const btnToggleCurrentPassVisibility = document.getElementById('btnToggleCurrentPassVisibility');
+const passVerifiedBadge = document.getElementById('passVerifiedBadge');
 const feedbackChangePass = document.getElementById('feedbackChangePass');
 const btnDeleteStudentAccount = document.getElementById('btnDeleteStudentAccount');
 
@@ -553,13 +558,124 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Student Change Password Form Submit
+  // Toggle visibility of current password input
+  if (btnToggleCurrentPassVisibility && currentPassStudent) {
+    btnToggleCurrentPassVisibility.addEventListener('click', () => {
+      const isPass = currentPassStudent.getAttribute('type') === 'password';
+      currentPassStudent.setAttribute('type', isPass ? 'text' : 'password');
+    });
+  }
+
+  function resetChangePasswordUi() {
+    passVerifiedBadge?.classList.add('hidden');
+    studentChangePassForm?.classList.add('hidden');
+    btnVerifyCurrentPass?.classList.remove('hidden');
+    if (currentPassStudent) {
+      currentPassStudent.disabled = false;
+      currentPassStudent.value = '';
+    }
+    if (newPassStudent) newPassStudent.value = '';
+    if (newPassConfirmStudent) newPassConfirmStudent.value = '';
+    feedbackChangePass?.classList.add('hidden');
+  }
+
+  // Step 1: Verify current password
+  if (btnVerifyCurrentPass) {
+    btnVerifyCurrentPass.addEventListener('click', async () => {
+      feedbackChangePass?.classList.add('hidden');
+      const currentPassword = (currentPassStudent?.value || '').trim();
+
+      if (!currentPassword) {
+        feedbackChangePass.textContent = 'Por favor ingresa tu contraseña actual.';
+        feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        feedbackChangePass.classList.remove('hidden');
+        currentPassStudent?.focus();
+        return;
+      }
+
+      btnVerifyCurrentPass.disabled = true;
+      btnVerifyCurrentPass.innerHTML = '<span>Verificando...</span>';
+
+      try {
+        const res = await fetch(`${state.apiUrl}/api/auth/verify-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.token}`
+          },
+          body: JSON.stringify({ currentPassword })
+        });
+        const result = await res.json();
+
+        if (res.ok && result.data?.verified) {
+          // Success: Unlock Step 2
+          feedbackChangePass.textContent = 'Identidad confirmada. Ahora puedes ingresar tu nueva contraseña.';
+          feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20';
+          feedbackChangePass.classList.remove('hidden');
+
+          passVerifiedBadge?.classList.remove('hidden');
+          currentPassStudent.disabled = true;
+          btnVerifyCurrentPass.classList.add('hidden');
+          studentChangePassForm?.classList.remove('hidden');
+          newPassStudent?.focus();
+        } else {
+          feedbackChangePass.textContent = result.error?.message || 'La contraseña actual es incorrecta.';
+          feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+          feedbackChangePass.classList.remove('hidden');
+        }
+      } catch (err) {
+        feedbackChangePass.textContent = 'Error de conexión al verificar contraseña.';
+        feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        feedbackChangePass.classList.remove('hidden');
+      } finally {
+        btnVerifyCurrentPass.disabled = false;
+        btnVerifyCurrentPass.innerHTML = '<span>Verificar Contraseña Actual</span>';
+      }
+    });
+  }
+
+  // Cancel Step 2 and reset to Step 1
+  if (btnCancelChangePass) {
+    btnCancelChangePass.addEventListener('click', () => {
+      resetChangePasswordUi();
+    });
+  }
+
+  // Step 2: Submit new password
   if (studentChangePassForm) {
     studentChangePassForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       feedbackChangePass?.classList.add('hidden');
-      const currentPassword = currentPassStudent.value;
-      const newPassword = newPassStudent.value;
+      const currentPassword = currentPassStudent?.value || '';
+      const newPassword = (newPassStudent?.value || '').trim();
+      const confirmPassword = (newPassConfirmStudent?.value || '').trim();
+
+      if (newPassword.length < 6) {
+        feedbackChangePass.textContent = 'La nueva contraseña debe tener mínimo 6 caracteres.';
+        feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        feedbackChangePass.classList.remove('hidden');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        feedbackChangePass.textContent = 'La nueva contraseña y su confirmación no coinciden.';
+        feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        feedbackChangePass.classList.remove('hidden');
+        return;
+      }
+
+      if (currentPassword === newPassword) {
+        feedbackChangePass.textContent = 'La nueva contraseña no puede ser idéntica a la actual.';
+        feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
+        feedbackChangePass.classList.remove('hidden');
+        return;
+      }
+
+      const submitBtn = document.getElementById('btnSubmitNewPass');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Actualizando...</span>';
+      }
 
       try {
         const res = await fetch(`${state.apiUrl}/api/auth/change-password`, {
@@ -572,10 +688,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const result = await res.json();
         if (res.ok) {
-          feedbackChangePass.textContent = 'Contraseña actualizada con éxito.';
-          feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-green-500/10 text-green-400 border border-green-500/20';
-          feedbackChangePass.classList.remove('hidden');
-          studentChangePassForm.reset();
+          alert('¡Contraseña actualizada exitosamente! Usa tu nueva contraseña en tu próximo inicio de sesión.');
+          resetChangePasswordUi();
         } else {
           feedbackChangePass.textContent = result.error?.message || 'Error al cambiar contraseña.';
           feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
@@ -585,6 +699,11 @@ document.addEventListener('DOMContentLoaded', () => {
         feedbackChangePass.textContent = 'Error de conexión.';
         feedbackChangePass.className = 'p-2.5 rounded-xl text-xs font-semibold text-center bg-red-500/10 text-red-400 border border-red-500/20';
         feedbackChangePass.classList.remove('hidden');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Guardar Nueva Contraseña</span>';
+        }
       }
     });
   }
@@ -907,6 +1026,10 @@ function switchStudentTab(tab) {
       }
     }
   });
+
+  if (tab === 'settings' && typeof resetChangePasswordUi === 'function') {
+    resetChangePasswordUi();
+  }
 }
 
 // Coordinator Tab Switcher
