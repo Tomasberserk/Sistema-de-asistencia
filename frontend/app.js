@@ -69,6 +69,7 @@ const btnRefreshStudent = document.getElementById('btnRefreshStudent');
 const excuseModal = document.getElementById('excuseModal');
 const excuseForm = document.getElementById('excuseForm');
 const excuseSessionId = document.getElementById('excuseSessionId');
+const excuseSessionSelect = document.getElementById('excuseSessionSelect');
 const excuseText = document.getElementById('excuseText');
 const excuseFile = document.getElementById('excuseFile');
 const btnCancelExcuse = document.getElementById('btnCancelExcuse');
@@ -76,6 +77,7 @@ const btnCancelExcuse = document.getElementById('btnCancelExcuse');
 const btnTabExcuses = document.getElementById('btnTabExcuses');
 const tabContentExcuses = document.getElementById('tabContentExcuses');
 const instructorExcusesGridBody = document.getElementById('instructorExcusesGridBody');
+const btnRefreshInstructorExcuses = document.getElementById('btnRefreshInstructorExcuses');
 
 const btnTabLateRequests = document.getElementById('btnTabLateRequests');
 const tabContentLateRequests = document.getElementById('tabContentLateRequests');
@@ -449,10 +451,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnRefreshActiveSession) btnRefreshActiveSession.addEventListener('click', loadStudentActiveSession);
   if (btnOpenNewExcuseModal) {
-    btnOpenNewExcuseModal.addEventListener('click', () => {
-      excuseSessionId.value = '';
-      excuseText.value = '';
-      excuseFile.value = '';
+    btnOpenNewExcuseModal.addEventListener('click', async () => {
+      if (!state.studentHistory || state.studentHistory.length === 0) {
+        await fetchStudentHistory();
+      }
+      populateExcuseSessions();
+      if (excuseSessionId) excuseSessionId.value = excuseSessionSelect?.value || '';
+      if (excuseText) excuseText.value = '';
+      if (excuseFile) excuseFile.value = '';
       excuseModal?.classList.remove('hidden');
     });
   }
@@ -2052,6 +2058,8 @@ async function fetchStudentHistory() {
 
     const result = await res.json();
     if (res.ok && result.data) {
+      state.studentHistory = result.data.history || [];
+      state.studentExcuses = result.data.excuses || [];
       renderStudentHistoryGrid(result.data.history);
       renderStudentExcuses(result.data.excuses);
     } else {
@@ -2135,11 +2143,52 @@ function renderStudentHistoryGrid(history) {
   studentTotalHours.textContent = `${totalAsis} / ${totalProg}h`;
 }
 
+// Populate Excuse Sessions Select helper
+function populateExcuseSessions(selectedSessionId) {
+  if (!excuseSessionSelect) return;
+  excuseSessionSelect.innerHTML = '<option value="">-- Selecciona una clase o sesión --</option>';
+
+  const sessions = state.studentHistory || [];
+  if (sessions.length === 0) {
+    excuseSessionSelect.innerHTML = '<option value="">No hay sesiones registradas en tu ficha</option>';
+    return;
+  }
+
+  sessions.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.sessionId;
+    const sessionDate = s.date || 'Sin fecha';
+    const statusText = s.tipo_registro || s.status || 'FALLA';
+    const hoursText = s.horas_falla ? `${s.horas_falla}h inasistencia` : 'Jornada regular';
+    opt.textContent = `${sessionDate} - Ficha ${s.unitCode} (${statusText} | ${hoursText})`;
+    if (selectedSessionId && s.sessionId === selectedSessionId) {
+      opt.selected = true;
+    }
+    excuseSessionSelect.appendChild(opt);
+  });
+
+  if (selectedSessionId) {
+    excuseSessionSelect.value = selectedSessionId;
+    if (excuseSessionId) excuseSessionId.value = selectedSessionId;
+  } else if (sessions.length === 1) {
+    excuseSessionSelect.value = sessions[0].sessionId;
+    if (excuseSessionId) excuseSessionId.value = sessions[0].sessionId;
+  }
+}
+
+if (excuseSessionSelect) {
+  excuseSessionSelect.addEventListener('change', () => {
+    if (excuseSessionId) excuseSessionId.value = excuseSessionSelect.value;
+  });
+}
+
 // Excuse upload modal helpers
 window.openExcuseModal = (sessionId) => {
-  excuseSessionId.value = sessionId;
-  excuseText.value = '';
-  excuseFile.value = '';
+  populateExcuseSessions(sessionId);
+  if (excuseSessionId) excuseSessionId.value = sessionId;
+  if (excuseSessionSelect) excuseSessionSelect.value = sessionId;
+  if (excuseText) excuseText.value = '';
+  if (excuseFile) excuseFile.value = '';
   excuseModal.classList.remove('hidden');
 };
 
@@ -2153,9 +2202,19 @@ btnRefreshStudent.addEventListener('click', () => {
 
 excuseForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const sessionId = excuseSessionId.value;
+  const sessionId = (excuseSessionSelect?.value || excuseSessionId?.value || '').trim();
   const text = excuseText.value.trim();
   const file = excuseFile.files[0];
+
+  if (!sessionId) {
+    alert('Por favor selecciona la clase o sesión a la cual deseas radicar la excusa.');
+    return;
+  }
+
+  if (!text) {
+    alert('Por favor ingresa la descripción o motivo de la justificación.');
+    return;
+  }
 
   let fileName = null;
   let fileData = null;
@@ -2174,6 +2233,13 @@ excuseForm.addEventListener('submit', async (e) => {
 });
 
 async function sendExcuse(sessionId, text, fileName, fileData) {
+  const submitBtn = excuseForm.querySelector('button[type="submit"]');
+  const originalHtml = submitBtn ? submitBtn.innerHTML : '<span>Enviar Excusa</span>';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>Enviando excusa...</span>';
+  }
+
   try {
     const res = await fetch(`${state.apiUrl}/api/student/excuses`, {
       method: 'POST',
@@ -2185,14 +2251,19 @@ async function sendExcuse(sessionId, text, fileName, fileData) {
     });
     const result = await res.json();
     if (res.ok) {
-      alert('Excusa presentada con éxito.');
+      alert('¡Excusa radicada exitosamente! Tu instructor podrá verla y resolverla desde su bandeja de excusas.');
       excuseModal.classList.add('hidden');
-      fetchStudentHistory();
+      await fetchStudentHistory();
     } else {
-      alert(`Error: ${result.error.message}`);
+      alert(`Error: ${result.error?.message || 'No se pudo radicar la excusa.'}`);
     }
   } catch (err) {
     alert('Error de red al presentar la excusa.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -2331,6 +2402,8 @@ function renderInstructorExcusesGrid(excuses) {
       `;
     }
 
+    const sessionDate = (e.room_created_at || e.created_at || '').split('T')[0] || '-';
+
     instructorExcusesGridBody.innerHTML += `
       <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
         <td class="py-3 px-4">
@@ -2338,7 +2411,7 @@ function renderInstructorExcusesGrid(excuses) {
           <div class="text-[10px] text-slate-500 font-mono">${e.student_doc}</div>
         </td>
         <td class="py-3 px-4 text-xs font-semibold text-slate-400">${e.unit_code}</td>
-        <td class="py-3 px-4 font-mono text-xs">${e.room_created_at.split('T')[0]}</td>
+        <td class="py-3 px-4 font-mono text-xs">${sessionDate}</td>
         <td class="py-3 px-4 text-xs max-w-xs truncate" title="${e.text}">${e.text}</td>
         <td class="py-3 px-4">${supportCol}</td>
         <td class="py-3 px-4">${statusBadge}</td>
@@ -2346,6 +2419,10 @@ function renderInstructorExcusesGrid(excuses) {
       </tr>
     `;
   });
+}
+
+if (btnRefreshInstructorExcuses) {
+  btnRefreshInstructorExcuses.addEventListener('click', fetchInstructorExcuses);
 }
 
 window.resolveExcuse = async (id, status) => {

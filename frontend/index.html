@@ -629,9 +629,15 @@
 
         <!-- TAB 3: BANDEJA DE EXCUSAS (INSTRUCTOR) -->
         <div id="tabContentExcuses" class="w-full hidden glass rounded-3xl p-6 flex flex-col gap-6">
-          <div class="border-b border-slate-800/60 pb-4">
-            <h3 class="text-lg font-bold text-white font-outfit">Bandeja de Excusas Recibidas</h3>
-            <p class="text-xs text-slate-400 mt-0.5">Revise y apruebe o rechace las justificaciones de inasistencia presentadas por los aprendices.</p>
+          <div class="border-b border-slate-800/60 pb-4 flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-white font-outfit">Bandeja de Excusas Recibidas</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Revise y apruebe o rechace las justificaciones de inasistencia presentadas por los aprendices.</p>
+            </div>
+            <button id="btnRefreshInstructorExcuses" type="button" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.2"/></svg>
+              <span>Actualizar</span>
+            </button>
           </div>
 
           <div class="overflow-x-auto">
@@ -1218,12 +1224,23 @@
         <form id="excuseForm" class="space-y-4">
           <input type="hidden" id="excuseSessionId">
           <div>
-            <label for="excuseText" class="block text-xs font-medium text-slate-300 mb-1.5">Descripción de la Excusa</label>
+            <label for="excuseSessionSelect" class="block text-xs font-medium text-slate-300 mb-1.5">Clase / Sesión a Justificar <span class="text-red-400">*</span></label>
+            <select 
+              id="excuseSessionSelect" 
+              required 
+              class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-[#39A900]"
+            >
+              <option value="">Selecciona la clase o sesión...</option>
+            </select>
+            <p class="text-[11px] text-slate-500 mt-1">Selecciona la jornada formativa correspondiente a la inasistencia.</p>
+          </div>
+          <div>
+            <label for="excuseText" class="block text-xs font-medium text-slate-300 mb-1.5">Descripción de la Excusa <span class="text-red-400">*</span></label>
             <textarea 
               id="excuseText" 
               required 
               rows="4" 
-              placeholder="Ej: Presento excusa por cita médica. Adjunto soporte."
+              placeholder="Ej: Presento excusa por cita médica / incapacidad de EPS. Adjunto soporte."
               class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-[#39A900]"
             ></textarea>
           </div>
@@ -1241,8 +1258,8 @@
             <button type="button" id="btnCancelExcuse" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-sm font-semibold transition-all">
               Cancelar
             </button>
-            <button type="submit" class="flex-1 bg-[#39A900] hover:bg-[#329200] text-white py-2 rounded-xl text-sm font-semibold transition-all">
-              Enviar Excusa
+            <button type="submit" id="btnSubmitExcuse" class="flex-1 bg-[#39A900] hover:bg-[#329200] text-white py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5">
+              <span>Enviar Excusa</span>
             </button>
           </div>
         </form>

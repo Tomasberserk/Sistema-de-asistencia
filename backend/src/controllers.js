@@ -927,7 +927,7 @@ export const getStudentHistory = async (req, res) => {
     // 1. Get Ficha enrollment
     const enrollment = await get('SELECT unit_id FROM enrollments WHERE person_id = ? AND active = 1', [studentId]);
     if (!enrollment) {
-      return res.json({ data: { sessions: [], excuses: [] } });
+      return res.json({ data: { history: [], excuses: [] } });
     }
 
     const unitId = enrollment.unit_id;
@@ -995,10 +995,21 @@ export const getStudentHistory = async (req, res) => {
 export const submitExcuse = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const { sessionId, text, fileName, fileData } = req.body;
+    let { sessionId, text, fileName, fileData } = req.body;
 
     const cleanText = sanitizeText(text, 1000);
     const cleanFileName = sanitizeText(fileName, 150);
+
+    // Fallback: if sessionId is empty or omitted, resolve student's latest session in their enrolled ficha
+    if (!sessionId) {
+      const enrollment = await get('SELECT unit_id FROM enrollments WHERE person_id = ? AND active = 1', [studentId]);
+      if (enrollment) {
+        const latestSession = await get('SELECT id FROM attendance_sessions WHERE unit_id = ? ORDER BY COALESCE(room_created_at, activated_at, created_at) DESC LIMIT 1', [enrollment.unit_id]);
+        if (latestSession) {
+          sessionId = latestSession.id;
+        }
+      }
+    }
 
     if (!sessionId || !cleanText) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'sessionId y texto de justificación son obligatorios.' } });
@@ -1052,7 +1063,8 @@ export const getInstructorExcuses = async (req, res) => {
     const rows = await query(`
       SELECT e.id, e.session_id, e.person_id, e.text, e.file_name, e.file_data, e.status, e.created_at,
              p.nombre as student_name, p.documento as student_doc,
-             s.room_created_at, u.code as unit_code, u.name as unit_name
+             COALESCE(s.room_created_at, s.activated_at) as room_created_at,
+             u.code as unit_code, u.name as unit_name
       FROM excuses e
       JOIN people p ON e.person_id = p.id
       JOIN attendance_sessions s ON e.session_id = s.id
