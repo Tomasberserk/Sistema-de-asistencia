@@ -947,8 +947,15 @@ export const getStudentHistory = async (req, res) => {
       WHERE person_id = ? AND status != 'rejected'
     `, [studentId]);
 
-    // 4. Get student submitted excuses
-    const excuses = await query('SELECT * FROM excuses WHERE person_id = ?', [studentId]);
+    // 4. Get student submitted excuses with session context
+    const excuses = await query(`
+      SELECT e.*, s.room_created_at as session_date, u.code as unit_code, u.name as unit_name
+      FROM excuses e
+      LEFT JOIN attendance_sessions s ON e.session_id = s.id
+      LEFT JOIN academic_units u ON s.unit_id = u.id
+      WHERE e.person_id = ?
+      ORDER BY e.created_at DESC
+    `, [studentId]);
 
     // Merge sessions with records and excuses
     const recordMap = new Map(records.map(r => [r.session_id, r]));

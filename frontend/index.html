@@ -766,7 +766,7 @@
         </div>
         <div class="text-right">
           <span class="text-xs text-slate-400">Total de Horas Asistidas</span>
-          <div class="text-2xl font-bold text-[#39A900]" id="studentTotalHours">0 / 0h</div>
+          <div class="text-2xl font-bold text-[#39A900]" id="studentTotalHours">0h</div>
         </div>
       </div>
 
@@ -778,8 +778,9 @@
         <button id="btnStudentTabHistory" class="px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all whitespace-nowrap">
           Historial de Asistencia
         </button>
-        <button id="btnStudentTabExcuses" class="px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all whitespace-nowrap">
-          Bandeja de Justificaciones
+        <button id="btnStudentTabExcuses" class="px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all whitespace-nowrap flex items-center gap-1.5">
+          <span>Bandeja de Justificaciones</span>
+          <span id="badgeStudentExcuses" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold"></span>
         </button>
         <button id="btnStudentTabSettings" class="px-4 py-2.5 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-all whitespace-nowrap">
           Configuración
@@ -859,6 +860,8 @@
             <strong class="text-white">Regla de Negocio BR-07 (Plazo Legal):</strong> Tienes hasta las <strong>23:59:59 del tercer día hábil siguiente</strong> a la sesión para radicar justificaciones válidas. Fines de semana y festivos oficiales en Colombia no computan en el plazo.
           </div>
         </div>
+
+        <div id="studentExcusesNotice" class="hidden p-3.5 rounded-2xl text-xs flex items-center gap-3"></div>
 
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-sm">
@@ -1539,6 +1542,6 @@
   </footer>
 
   <!-- Link script -->
-  <script src="app.js?v=2.3.1"></script>
+  <script src="app.js?v=2.3.2"></script>
 </body>
 </html>

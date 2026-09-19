@@ -2388,7 +2388,7 @@ function renderStudentHistoryGrid(history) {
   
   if (!history || history.length === 0) {
     studentFichaName.textContent = 'Sin Ficha Matriculada';
-    studentTotalHours.textContent = '0 / 0h';
+    studentTotalHours.textContent = '0h';
     studentHistoryGridBody.innerHTML = `
       <tr>
         <td colspan="8" class="text-center py-8 text-slate-500">No hay clases registradas en tu ficha académica.</td>
@@ -2420,7 +2420,7 @@ function renderStudentHistoryGrid(history) {
 
     // Excuse button or state
     let excuseCol = '-';
-    if (h.horas_falla > 0) {
+    if (h.horas_falla > 0 || h.excuse) {
       if (h.excuse) {
         if (h.excuse.status === 'pending') {
           excuseCol = `<span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Excusa Pendiente</span>`;
@@ -2453,7 +2453,7 @@ function renderStudentHistoryGrid(history) {
     `;
   });
 
-  studentTotalHours.textContent = `${totalAsis} / ${totalProg}h`;
+  studentTotalHours.textContent = `${totalAsis}h`;
 }
 
 // Populate Excuse Sessions Select helper
@@ -2584,13 +2584,64 @@ function renderStudentExcuses(excuses) {
   if (!studentExcusesGridBody) return;
   studentExcusesGridBody.innerHTML = '';
 
+  const badgeStudentExcuses = document.getElementById('badgeStudentExcuses');
+  const studentExcusesNotice = document.getElementById('studentExcusesNotice');
+
   if (!excuses || excuses.length === 0) {
+    if (badgeStudentExcuses) badgeStudentExcuses.classList.add('hidden');
+    if (studentExcusesNotice) studentExcusesNotice.classList.add('hidden');
     studentExcusesGridBody.innerHTML = `
       <tr>
         <td colspan="5" class="text-center py-8 text-slate-500">No has radicado ninguna justificación aún.</td>
       </tr>
     `;
     return;
+  }
+
+  const rejectedCount = excuses.filter(e => e.status === 'rejected').length;
+  const approvedCount = excuses.filter(e => e.status === 'approved').length;
+  const pendingCount = excuses.filter(e => e.status === 'pending').length;
+
+  if (badgeStudentExcuses) {
+    if (rejectedCount > 0) {
+      badgeStudentExcuses.textContent = `${rejectedCount} Rechazada${rejectedCount > 1 ? 's' : ''}`;
+      badgeStudentExcuses.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30';
+      badgeStudentExcuses.classList.remove('hidden');
+    } else if (pendingCount > 0) {
+      badgeStudentExcuses.textContent = `${pendingCount} Pendiente${pendingCount > 1 ? 's' : ''}`;
+      badgeStudentExcuses.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
+      badgeStudentExcuses.classList.remove('hidden');
+    } else if (approvedCount > 0) {
+      badgeStudentExcuses.textContent = `${approvedCount} Aprobada${approvedCount > 1 ? 's' : ''}`;
+      badgeStudentExcuses.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/30';
+      badgeStudentExcuses.classList.remove('hidden');
+    } else {
+      badgeStudentExcuses.classList.add('hidden');
+    }
+  }
+
+  if (studentExcusesNotice) {
+    if (rejectedCount > 0) {
+      studentExcusesNotice.className = 'p-3.5 rounded-2xl text-xs flex items-center gap-3 bg-red-500/10 text-red-300 border border-red-500/30';
+      studentExcusesNotice.innerHTML = `
+        <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <div>
+          <strong class="text-white">Aviso de Novedad:</strong> Tu instructor ha <strong class="text-red-400 font-bold">RECHAZADO ${rejectedCount} justificación(es)</strong> radicada(s). Revisa el detalle de las clases en la tabla para más información.
+        </div>
+      `;
+      studentExcusesNotice.classList.remove('hidden');
+    } else if (approvedCount > 0 && pendingCount === 0) {
+      studentExcusesNotice.className = 'p-3.5 rounded-2xl text-xs flex items-center gap-3 bg-green-500/10 text-green-300 border border-green-500/30';
+      studentExcusesNotice.innerHTML = `
+        <svg class="w-5 h-5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <div>
+          <strong class="text-white">Al día:</strong> Todas tus justificaciones han sido <strong class="text-green-400">APROBADAS</strong> y tus horas formativas fueron convalidadas.
+        </div>
+      `;
+      studentExcusesNotice.classList.remove('hidden');
+    } else {
+      studentExcusesNotice.classList.add('hidden');
+    }
   }
 
   excuses.forEach(e => {
@@ -2611,12 +2662,21 @@ function renderStudentExcuses(excuses) {
       `;
     }
 
-    const radicadoAt = e.created_at ? new Date(e.created_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+    let radicadoAt = '-';
+    if (e.created_at) {
+      try {
+        radicadoAt = new Date(e.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
+      } catch (err) {
+        radicadoAt = e.created_at.split('T')[0];
+      }
+    }
+
+    const fechaSesion = e.session_date ? e.session_date.split('T')[0] : (e.session_id ? e.session_id.substring(0, 10) : '-');
 
     studentExcusesGridBody.innerHTML += `
       <tr class="hover:bg-slate-900/20 border-b border-slate-800/40">
-        <td class="py-3 px-4 font-mono text-xs text-slate-400">${e.session_id ? e.session_id.substring(0, 10) : '-'}</td>
-        <td class="py-3 px-4 text-xs text-slate-200 max-w-xs truncate" title="${e.text}">${e.text}</td>
+        <td class="py-3 px-4 font-mono text-xs text-slate-300 font-semibold">${fechaSesion}</td>
+        <td class="py-3 px-4 text-xs text-slate-200 max-w-xs truncate" title="${e.text || ''}">${e.text || '-'}</td>
         <td class="py-3 px-4">${supportLink}</td>
         <td class="py-3 px-4">${statusBadge}</td>
         <td class="py-3 px-4 font-mono text-xs text-slate-400">${radicadoAt}</td>
@@ -3367,7 +3427,7 @@ function renderCoordEvidences(evidences) {
 
   evidences.forEach(ev => {
     const dateStr = ev.activated_at 
-      ? new Date(ev.activated_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) 
+      ? new Date(ev.activated_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) 
       : 'No iniciada';
 
     // Status Badges
@@ -3494,7 +3554,7 @@ function renderCoordDualApprovals(requests) {
   const currentUserId = state.person?.id;
 
   requests.forEach(r => {
-    const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+    const dateStr = r.created_at ? new Date(r.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '-';
     const isSelf = r.requested_by === currentUserId;
 
     let actionCol = '';
@@ -3606,7 +3666,7 @@ function renderCoordAuditLogs(logs) {
   }
 
   logs.forEach(l => {
-    const dateStr = l.created_at ? new Date(l.created_at).toLocaleDateString('es-CO', { dateStyle: 'short', timeStyle: 'medium' }) : '-';
+    const dateStr = l.created_at ? new Date(l.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'medium' }) : '-';
     const actor = l.actor_name ? `${l.actor_name} (${l.actor_doc})` : (l.actor_id || 'SYSTEM');
 
     let actionBadge = `<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">${l.action}</span>`;
