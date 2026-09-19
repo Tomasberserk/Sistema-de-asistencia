@@ -299,9 +299,14 @@ app.get('/attendance/:token', (req, res) => {
         <span style="font-size:.65rem;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Portal del Aprendiz</span>
         <h2 id="dash-nombre" style="font-size:1rem;font-weight:800;color:#fff;margin:0">Tomás Berserk</h2>
       </div>
-      <button onclick="doStudentLogout()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#f87171;font-size:.65rem;font-weight:700;padding:.4rem .75rem;border-radius:.5rem;cursor:pointer">
-        Salir 
-      </button>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <a href="/" style="background:rgba(57,169,0,.15);border:1px solid rgba(57,169,0,.3);color:#4ade80;font-size:.65rem;font-weight:700;padding:.4rem .75rem;border-radius:.5rem;text-decoration:none;display:inline-flex;align-items:center">
+          ← Panel Principal
+        </a>
+        <button onclick="doStudentLogout()" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#f87171;font-size:.65rem;font-weight:700;padding:.4rem .75rem;border-radius:.5rem;cursor:pointer">
+          Salir 
+        </button>
+      </div>
     </div>
 
     <!-- Persistent navigation tabs -->
@@ -559,11 +564,17 @@ app.get('/attendance/:token', (req, res) => {
   }
 
   // Show/hide manual code field dynamically
-  document.addEventListener('DOMContentLoaded', () => {
-    if (TOKEN === 'manual' || TOKEN === '') {
-      document.getElementById('manual-code-wrapper').classList.remove('hidden');
+  function checkManualCodeWrapper() {
+    const el = document.getElementById('manual-code-wrapper');
+    if (el && (TOKEN === 'manual' || TOKEN === '')) {
+      el.classList.remove('hidden');
     }
-  });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkManualCodeWrapper);
+  } else {
+    checkManualCodeWrapper();
+  }
 
   function showScreen(id, feedbackMsg, feedbackType) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -598,11 +609,16 @@ app.get('/attendance/:token', (req, res) => {
   }
 
   // On page load, if token exists, auto-login
-  document.addEventListener('DOMContentLoaded', () => {
+  function initStudentPortal() {
     if (studentToken && studentProfile) {
       showStudentPortal(studentProfile);
     }
-  });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStudentPortal);
+  } else {
+    initStudentPortal();
+  }
 
   // ── STEP 1: Persistent Student Login ────────────────────────────────────────
   async function doCheck() {
@@ -1131,8 +1147,12 @@ app.get('/attendance/:token', (req, res) => {
     }
 
     // Set Ficha Code if available
-    const fichaText = TOKEN !== 'manual' && TOKEN !== '' ? 'Ficha: ' + TOKEN : 'Clase Local';
+    const fichaText = TOKEN !== 'manual' && TOKEN !== '' ? 'Código de Clase: ' + TOKEN : 'Clase Local';
     document.getElementById('dash-ficha').textContent = fichaText;
+    const tokenInp = document.getElementById('asis-token-input');
+    if (tokenInp && TOKEN && TOKEN !== 'manual') {
+      tokenInp.value = TOKEN;
+    }
 
     showScreen('screen-dashboard', '');
     switchStudentTab('asis');

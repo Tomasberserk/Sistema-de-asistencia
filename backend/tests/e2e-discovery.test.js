@@ -116,6 +116,41 @@ export async function runDiscoveryFlowTests() {
   assert('hasActiveSession' in activeSessionData.data, 'Debe indicar si hay sesión activa');
   console.log('  ✓ GET /api/student/active-session responde estado de aula formativa');
 
+  // 5.5. Registro de Asistencia Directo con Código de 6 Caracteres (1-Click Seamless Check-in)
+  const instructorHeaders = authHeader({ id: 'per_inst_1', institutionId: 'inst_sena_1', roles: ['INSTRUCTOR'] });
+  const openSessionRes = await fetch(`${baseUrl}/room/create`, {
+    method: 'POST',
+    headers: { ...instructorHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      institutionId: 'inst_sena_1',
+      unitId: targetFicha.id,
+      qrEnabled: true,
+      ipCheckEnabled: false,
+      validationMode: 'QR_ONLY'
+    })
+  });
+  assert.strictEqual(openSessionRes.status, 201, 'Instructor debe abrir sala con 201');
+  const sessionCreated = (await openSessionRes.json()).data;
+  const fullToken = sessionCreated.qr_token;
+  const manualSixCode = fullToken.substring(0, 6).toUpperCase();
+
+  // El aprendiz autenticado ingresa el código manual de 6 caracteres sin contraseña ni redirección
+  const resManualCheckin = await fetch(`${baseUrl}/public/attendance/${manualSixCode}/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${studentToken}`
+    },
+    body: JSON.stringify({
+      documento: randDoc,
+      qrToken: manualSixCode
+    })
+  });
+  assert.strictEqual(resManualCheckin.status, 200, 'Registro con código manual de 6 caracteres debe responder 200');
+  const checkinData = await resManualCheckin.json();
+  assert.strictEqual(checkinData.data.status, 'accepted', 'La asistencia debe quedar marcada como accepted');
+  console.log('  ✓ Registro fluido de 6 caracteres para aprendiz autenticado (sin redirección ni re-login) validado');
+
   // 6. Regla de 4 Ojos (Two-Person Rule / BR-08)
   const testFichaId = `unit_test_4eyes_${Date.now()}`;
   const testFichaCode = `4EYES-${Date.now()}`;

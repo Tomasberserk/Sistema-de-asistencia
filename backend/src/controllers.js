@@ -346,9 +346,9 @@ export const reopenRoom = async (req, res) => {
 
     await run(`
       UPDATE attendance_sessions
-      SET status = 'active', room_expires_at = ?, is_reopened = 1, creator_ip = ?
+      SET status = 'active', room_expires_at = ?, is_reopened = 1, creator_ip = ?, qr_token = ?
       WHERE id = ?
-    `, [expiresAt.toISOString(), creatorIp, sessionId]);
+    `, [expiresAt.toISOString(), creatorIp, generateQrToken(sessionId, 0), sessionId]);
 
     const updated = await get('SELECT * FROM attendance_sessions WHERE id = ?', [sessionId]);
     res.json({ data: updated, message: 'Sala reabierta para registrar salida.' });
@@ -431,11 +431,11 @@ export const checkDocument = async (req, res) => {
 
     // Find session
     let session = null;
-    const activeSessions = await query("SELECT * FROM attendance_sessions WHERE status = 'active'");
+    const activeSessions = await query("SELECT * FROM attendance_sessions WHERE LOWER(status) IN ('active', 'open')");
     for (const s of activeSessions) {
       for (let i = -1; i <= 10; i++) {
         const tok = generateQrToken(s.id, -i * 60000);
-        if (matchToken(token, tok)) { session = s; break; }
+        if (matchToken(token, tok) || (s.qr_token && matchToken(token, s.qr_token))) { session = s; break; }
       }
       if (session) break;
     }
@@ -484,12 +484,12 @@ export const checkin = async (req, res) => {
       session = await get('SELECT * FROM attendance_sessions WHERE id = ?', [bodySessionId]);
     } else {
       // Find session by matching rotating token (with 10-minute leeway = 10 blocks of 60s)
-      const activeSessions = await query("SELECT * FROM attendance_sessions WHERE status = 'active'");
+      const activeSessions = await query("SELECT * FROM attendance_sessions WHERE LOWER(status) IN ('active', 'open')");
       for (const s of activeSessions) {
         for (let i = -1; i <= 10; i++) {
           const offset = -i * 60000;
           const tok = generateQrToken(s.id, offset);
-          if (matchToken(token, tok)) {
+          if (matchToken(token, tok) || (s.qr_token && matchToken(token, s.qr_token))) {
             session = s;
             break;
           }
@@ -1152,11 +1152,11 @@ export const selfRegisterCheckin = async (req, res) => {
 
     // Find session by token (with 10-minute leeway = 10 blocks of 60s)
     let session = null;
-    const activeSessions = await query("SELECT * FROM attendance_sessions WHERE status = 'active'");
+    const activeSessions = await query("SELECT * FROM attendance_sessions WHERE LOWER(status) IN ('active', 'open')");
     for (const s of activeSessions) {
       for (let i = -1; i <= 10; i++) {
         const tok = generateQrToken(s.id, -i * 60000);
-        if (matchToken(token, tok)) { session = s; break; }
+        if (matchToken(token, tok) || (s.qr_token && matchToken(token, s.qr_token))) { session = s; break; }
       }
       if (session) break;
     }

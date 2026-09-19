@@ -385,7 +385,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       stopQrScanner();
-      window.location.href = `/attendance/${code}`;
+      if (state.token && state.person) {
+        showDashboard();
+        await submitStudentCheckin(code);
+      } else {
+        window.location.href = `/attendance/${code}`;
+      }
     });
   }
 
@@ -963,6 +968,11 @@ function showStudentLogin() {
 }
 
 function showDashboard() {
+  const roles = state.person?.roles || [];
+  const isCoord = roles.includes('COORDINADOR');
+  const isInstructor = roles.includes('INSTRUCTOR');
+  const isStudent = !isCoord && !isInstructor;
+
   portalScreen?.classList.add('hidden');
   scannerScreen?.classList.add('hidden');
   loginScreen?.classList.add('hidden');
@@ -973,11 +983,11 @@ function showDashboard() {
   if (userRoleEl) {
     userRoleEl.textContent = isCoord ? 'COORDINADOR' : (isInstructor ? 'INSTRUCTOR' : 'APRENDIZ');
   }
+  const headerSubtitle = document.getElementById('headerSubtitle');
+  if (headerSubtitle) {
+    headerSubtitle.textContent = isCoord ? 'Coordinación Académica' : (isInstructor ? 'Instructor SENA' : 'Aprendiz SENA');
+  }
   stopQrScanner();
-
-  const roles = state.person?.roles || [];
-  const isCoord = roles.includes('COORDINADOR');
-  const isInstructor = roles.includes('INSTRUCTOR');
 
   if (isCoord) {
     coordDashboardScreen?.classList.remove('hidden');
@@ -1115,14 +1125,36 @@ async function loadStudentActiveSession() {
 
     if (!hasActiveSession || !session) {
       studentActiveSessionContent.innerHTML = `
-        <div class="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+        <div class="flex flex-col items-center justify-center py-10 text-center text-slate-400">
           <div class="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3">
             <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
           </div>
-          <h4 class="text-white font-bold text-base mb-1">No hay ninguna sesión activa en este momento</h4>
-          <p class="text-xs text-slate-500 max-w-sm">Tu instructor abrirá la sala de asistencia al inicio de la jornada formativa presencial.</p>
+          <h4 class="text-white font-bold text-base mb-1">No hay ninguna sesión activa detectada para tu ficha</h4>
+          <p class="text-xs text-slate-500 max-w-sm mb-5">Tu instructor abrirá la sala de asistencia al inicio de la jornada formativa presencial.</p>
+
+          <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-5 text-left space-y-3">
+            <span class="text-xs font-bold text-slate-300 uppercase tracking-wide block">¿Tienes el código de 6 caracteres del instructor?</span>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input 
+                type="text" 
+                id="inputInlineStudentCode" 
+                maxlength="12" 
+                placeholder="CÓDIGO (EJ: A8X9K2)" 
+                class="flex-1 bg-slate-800/90 border border-slate-700 text-white font-mono font-bold text-center tracking-widest text-sm uppercase px-3 py-2.5 rounded-xl focus:border-[#39A900] focus:ring-1 focus:ring-[#39A900] outline-none"
+              />
+              <button 
+                id="btnInlineStudentCheckin" 
+                onclick="submitInlineManualCode()" 
+                class="px-5 py-2.5 bg-[#39A900] hover:bg-[#329200] active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-[#39A900]/20 flex items-center justify-center gap-1.5"
+              >
+                <span>Registrar</span>
+              </button>
+            </div>
+            <div id="inlineCheckinFeedback" class="hidden text-xs font-semibold"></div>
+          </div>
         </div>
       `;
+      setupInlineCodeKeydown();
       return;
     }
 
@@ -1196,34 +1228,85 @@ async function loadStudentActiveSession() {
           </div>
         </div>
 
-        <div id="studentCheckinActionArea" class="flex flex-col sm:flex-row items-center gap-3">
+        <div id="studentCheckinActionArea" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             id="btnStudentScanQr" 
             onclick="startQrScanner()"
-            class="w-full sm:w-auto px-6 py-3 bg-[#39A900] hover:bg-[#329200] active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-[#39A900]/20 flex items-center justify-center gap-2"
+            class="px-6 py-3 bg-[#39A900] hover:bg-[#329200] active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-[#39A900]/20 flex items-center justify-center gap-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h.01M16 20h2M4 12h2m0 0H4m-2 0h2m14-4V4m0 8h2m-2-4h-2m-8 8v4m0 0v-4m-2 4h2M4 20h2m-2 0V16m2 4h2m4-12h.01M16 16h.01M20 12h.01"/></svg>
             <span>Escanear QR del Aula</span>
           </button>
-          <button 
-            id="btnStudentManualCode" 
-            onclick="promptManualCode('${session.id}')"
-            class="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition-all border border-slate-700 flex items-center justify-center gap-2"
-          >
-            <span>Ingresar Código de 6 Caracteres</span>
-          </button>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800/80">
+          <label class="block text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">
+            O ingresa el código manual de 6 caracteres del instructor:
+          </label>
+          <div class="flex flex-wrap items-center gap-3">
+            <input 
+              type="text" 
+              id="inputInlineStudentCode" 
+              maxlength="12" 
+              placeholder="CÓDIGO (EJ: A8X9K2)" 
+              class="bg-slate-800/90 border border-slate-700 text-white font-mono font-bold text-center tracking-widest text-base uppercase px-4 py-2.5 rounded-xl focus:border-[#39A900] focus:ring-1 focus:ring-[#39A900] outline-none w-56 transition-all placeholder:tracking-normal placeholder:font-normal placeholder:text-xs placeholder:text-slate-500"
+            />
+            <button 
+              id="btnInlineStudentCheckin" 
+              onclick="submitInlineManualCode()" 
+              class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-blue-600/20 flex items-center gap-2"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+              <span>Registrar Asistencia</span>
+            </button>
+          </div>
+          <div id="inlineCheckinFeedback" class="hidden mt-2 text-xs font-semibold"></div>
         </div>
       </div>
     `;
+    setupInlineCodeKeydown();
 
   } catch (err) {
     studentActiveSessionContent.innerHTML = `<div class="p-4 text-center text-red-400 text-xs">Error de conexión al verificar sesión.</div>`;
   }
 }
 
+function setupInlineCodeKeydown() {
+  const inp = document.getElementById('inputInlineStudentCode');
+  if (inp) {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitInlineManualCode();
+      }
+    });
+  }
+}
+
+window.submitInlineManualCode = async () => {
+  const inp = document.getElementById('inputInlineStudentCode');
+  const fb = document.getElementById('inlineCheckinFeedback');
+  if (!inp) return;
+  const code = inp.value.trim().toUpperCase();
+  if (code.length < 6) {
+    if (fb) {
+      fb.textContent = '❌ El código debe tener al menos 6 caracteres.';
+      fb.className = 'mt-2 text-xs font-semibold text-red-400 block';
+    } else {
+      alert('El código debe tener al menos 6 caracteres.');
+    }
+    return;
+  }
+  if (fb) {
+    fb.textContent = '⏳ Validando código y registrando asistencia...';
+    fb.className = 'mt-2 text-xs font-semibold text-blue-400 block animate-pulse';
+  }
+  await submitStudentCheckin(code);
+};
+
 async function submitStudentCheckin(token) {
   if (!token) return;
-  const cleanToken = token.trim();
+  const cleanToken = token.trim().toUpperCase();
 
   if (studentActiveSessionContent) {
     studentActiveSessionContent.innerHTML = `
@@ -1262,6 +1345,12 @@ async function submitStudentCheckin(token) {
 }
 
 window.promptManualCode = async (sessionId) => {
+  const inputEl = document.getElementById('inputInlineStudentCode');
+  if (inputEl) {
+    inputEl.focus();
+    inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   const code = prompt('Ingresa el código alfanumérico de 6 caracteres visible en la pantalla del docente:');
   if (!code) return;
   const cleanCode = code.trim().toUpperCase();
