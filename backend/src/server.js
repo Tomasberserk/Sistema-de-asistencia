@@ -73,11 +73,22 @@ const frontendCandidates = [
   path.resolve(__dirname, 'frontend')
 ];
 const frontendPath = frontendCandidates.find(p => fs.existsSync(p)) || frontendCandidates[0];
-app.use(express.static(frontendPath));
+app.use(express.static(frontendPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 app.get('/', (req, res, next) => {
   const indexPath = path.join(frontendPath, 'index.html');
   if (fs.existsSync(indexPath)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     return res.sendFile(indexPath);
   }
   next();

@@ -1,8 +1,19 @@
 // State Management
+let storedPerson = null;
+try {
+  const rawPerson = localStorage.getItem('person');
+  if (rawPerson && rawPerson !== 'undefined' && rawPerson !== 'null') {
+    storedPerson = JSON.parse(rawPerson);
+  }
+} catch (e) {
+  storedPerson = null;
+  localStorage.removeItem('person');
+}
+
 let state = {
   apiUrl: window.location.origin,
   token: localStorage.getItem('token') || '',
-  person: JSON.parse(localStorage.getItem('person') || 'null'),
+  person: storedPerson,
   activeSession: null,
   activeTab: 'control', // 'control' or 'report'
   qrcode: null,
@@ -1033,59 +1044,69 @@ function showStudentLogin() {
 }
 
 function showDashboard() {
-  const roles = state.person?.roles || [];
-  const isCoord = roles.includes('COORDINADOR');
-  const isInstructor = roles.includes('INSTRUCTOR');
-  const isStudent = !isCoord && !isInstructor;
-
-  portalScreen?.classList.add('hidden');
-  scannerScreen?.classList.add('hidden');
-  loginScreen?.classList.add('hidden');
-  studentLoginScreen?.classList.add('hidden');
-  userInfo?.classList.remove('hidden');
-  if (userName) userName.textContent = state.person?.nombre || '';
-  const userRoleEl = document.getElementById('userRole');
-  if (userRoleEl) {
-    userRoleEl.textContent = isCoord ? 'COORDINADOR' : (isInstructor ? 'INSTRUCTOR' : 'APRENDIZ');
-  }
-  const headerSubtitle = document.getElementById('headerSubtitle');
-  if (headerSubtitle) {
-    headerSubtitle.textContent = isCoord ? 'Coordinación Académica' : (isInstructor ? 'Instructor SENA' : 'Aprendiz SENA');
-  }
-  stopQrScanner();
-
-  if (isCoord) {
-    coordDashboardScreen?.classList.remove('hidden');
-    dashboardScreen?.classList.add('hidden');
-    studentDashboardScreen?.classList.add('hidden');
-    
-    switchCoordTab('instructors');
-    fetchCoordInstructors();
-  } else if (isInstructor) {
-    coordDashboardScreen?.classList.add('hidden');
-    dashboardScreen?.classList.remove('hidden');
-    studentDashboardScreen?.classList.add('hidden');
-    loadFichas();
-    checkForActiveSession();
-    fetchInstructorExcuses();
-  } else {
-    coordDashboardScreen?.classList.add('hidden');
-    dashboardScreen?.classList.add('hidden');
-    studentDashboardScreen?.classList.remove('hidden');
-    if (studentWelcomeName) {
-      studentWelcomeName.textContent = `Bienvenido(a), ${state.person?.nombre || 'Aprendiz'} (${state.person?.documento || ''})`;
+  try {
+    if (!state.person || !state.token) {
+      showPortal();
+      return;
     }
-    switchStudentTab('active');
-    loadStudentActiveSession();
-    fetchStudentHistory();
 
-    const pendingToken = sessionStorage.getItem('pending_qr_token');
-    if (pendingToken) {
-      sessionStorage.removeItem('pending_qr_token');
-      setTimeout(() => {
-        submitStudentCheckin(pendingToken);
-      }, 300);
+    const roles = (state.person && Array.isArray(state.person.roles)) ? state.person.roles : [];
+    const isCoord = roles.includes('COORDINADOR');
+    const isInstructor = roles.includes('INSTRUCTOR');
+    const isStudent = !isCoord && !isInstructor;
+
+    portalScreen?.classList.add('hidden');
+    scannerScreen?.classList.add('hidden');
+    loginScreen?.classList.add('hidden');
+    studentLoginScreen?.classList.add('hidden');
+    userInfo?.classList.remove('hidden');
+    if (userName) userName.textContent = state.person?.nombre || '';
+    const userRoleEl = document.getElementById('userRole');
+    if (userRoleEl) {
+      userRoleEl.textContent = isCoord ? 'COORDINADOR' : (isInstructor ? 'INSTRUCTOR' : 'APRENDIZ');
     }
+    const headerSubtitle = document.getElementById('headerSubtitle');
+    if (headerSubtitle) {
+      headerSubtitle.textContent = isCoord ? 'Coordinación Académica' : (isInstructor ? 'Instructor SENA' : 'Aprendiz SENA');
+    }
+    stopQrScanner();
+
+    if (isCoord) {
+      coordDashboardScreen?.classList.remove('hidden');
+      dashboardScreen?.classList.add('hidden');
+      studentDashboardScreen?.classList.add('hidden');
+      
+      switchCoordTab('instructors');
+      fetchCoordInstructors();
+    } else if (isInstructor) {
+      coordDashboardScreen?.classList.add('hidden');
+      dashboardScreen?.classList.remove('hidden');
+      studentDashboardScreen?.classList.add('hidden');
+      loadFichas();
+      checkForActiveSession();
+      fetchInstructorExcuses();
+    } else {
+      coordDashboardScreen?.classList.add('hidden');
+      dashboardScreen?.classList.add('hidden');
+      studentDashboardScreen?.classList.remove('hidden');
+      if (studentWelcomeName) {
+        studentWelcomeName.textContent = `Bienvenido(a), ${state.person?.nombre || 'Aprendiz'} (${state.person?.documento || ''})`;
+      }
+      switchStudentTab('active');
+      loadStudentActiveSession();
+      fetchStudentHistory();
+
+      const pendingToken = sessionStorage.getItem('pending_qr_token');
+      if (pendingToken) {
+        sessionStorage.removeItem('pending_qr_token');
+        setTimeout(() => {
+          submitStudentCheckin(pendingToken);
+        }, 300);
+      }
+    }
+  } catch (err) {
+    console.error('Error al renderizar dashboard:', err);
+    showPortal();
   }
 }
 
