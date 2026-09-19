@@ -852,6 +852,10 @@ function showDashboard() {
   studentLoginScreen?.classList.add('hidden');
   userInfo?.classList.remove('hidden');
   if (userName) userName.textContent = state.person?.nombre || '';
+  const userRoleEl = document.getElementById('userRole');
+  if (userRoleEl) {
+    userRoleEl.textContent = isCoord ? 'COORDINADOR' : (isInstructor ? 'INSTRUCTOR' : 'APRENDIZ');
+  }
   stopQrScanner();
 
   const roles = state.person?.roles || [];
@@ -986,7 +990,7 @@ async function loadStudentActiveSession() {
       return;
     }
 
-    const { hasActiveSession, alreadyCheckedIn, checkinRecord, session } = result.data;
+    const { hasActiveSession, alreadyCheckedIn, checkinRecord, session, isExpired } = result.data;
 
     if (!hasActiveSession || !session) {
       studentActiveSessionContent.innerHTML = `
@@ -1026,6 +1030,27 @@ async function loadStudentActiveSession() {
           <div class="flex flex-col items-center md:items-end gap-1">
             <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold border ${statusClass}">${rec.status || 'REGULAR'}</span>
             <span class="text-xs font-mono text-slate-300 mt-1">${horasVal}h / ${horasProg}h computadas</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    if (isExpired) {
+      studentActiveSessionContent.innerHTML = `
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono font-bold text-amber-400">Ficha ${session.unitCode}</span>
+                <span class="text-xs text-slate-400 font-semibold">${session.unitName}</span>
+              </div>
+              <h4 class="text-lg font-bold text-white mt-0.5">Ventana de Ingreso Finalizada (15 min)</h4>
+              <p class="text-xs text-slate-400 mt-0.5">La sala inició a las ${new Date(session.createdAt).toLocaleTimeString('es-CO')}. Si llegaste tarde o necesitas registrarte, solicita a tu instructor que reabra la sala o registre tu asistencia manual.</p>
+            </div>
           </div>
         </div>
       `;

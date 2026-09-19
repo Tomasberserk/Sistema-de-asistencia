@@ -2178,19 +2178,21 @@ export const registerStudent = async (req, res) => {
 export const getStudentActiveSession = async (req, res) => {
   try {
     const studentId = req.user.id;
-    const enrollment = await get('SELECT unit_id FROM enrollments WHERE person_id = ? AND active = 1', [studentId]);
-    if (!enrollment) {
+    const enrollments = await query('SELECT unit_id FROM enrollments WHERE person_id = ? AND active = 1', [studentId]);
+    if (!enrollments || enrollments.length === 0) {
       return res.status(200).json({ data: { hasActiveSession: false } });
     }
 
+    const unitIds = enrollments.map(e => e.unit_id);
+    const placeholders = unitIds.map(() => '?').join(',');
     const session = await get(`
-      SELECT s.id, s.unit_id, s.status, s.room_created_at, s.validation_mode, s.qr_token,
+      SELECT s.id, s.unit_id, s.status, s.room_created_at, s.room_expires_at, s.validation_mode, s.qr_token,
              u.code as unit_code, u.name as unit_name
       FROM attendance_sessions s
       JOIN academic_units u ON s.unit_id = u.id
-      WHERE s.unit_id = ? AND s.status = 'OPEN'
+      WHERE s.unit_id IN (${placeholders}) AND LOWER(s.status) IN ('active', 'open')
       ORDER BY s.room_created_at DESC LIMIT 1
-    `, [enrollment.unit_id]);
+    `, unitIds);
 
     if (!session) {
       return res.status(200).json({ data: { hasActiveSession: false } });
@@ -2199,9 +2201,13 @@ export const getStudentActiveSession = async (req, res) => {
     // Check if apprentice already checked in
     const checkin = await get('SELECT * FROM attendance_records WHERE session_id = ? AND person_id = ?', [session.id, studentId]);
 
+    const now = new Date();
+    const isExpired = session.room_expires_at && now > new Date(session.room_expires_at);
+
     return res.status(200).json({
       data: {
         hasActiveSession: true,
+        isExpired: !!isExpired,
         alreadyCheckedIn: !!checkin,
         checkinRecord: checkin || null,
         session: {
@@ -2210,7 +2216,8 @@ export const getStudentActiveSession = async (req, res) => {
           unitCode: session.unit_code,
           unitName: session.unit_name,
           validationMode: session.validation_mode || 'QR_ONLY',
-          createdAt: session.room_created_at
+          createdAt: session.room_created_at,
+          expiresAt: session.room_expires_at
         }
       }
     });
